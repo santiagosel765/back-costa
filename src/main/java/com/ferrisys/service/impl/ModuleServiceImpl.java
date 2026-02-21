@@ -3,14 +3,15 @@ package com.ferrisys.service.impl;
 import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.entity.user.AuthModule;
+import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.mapper.ModuleMapper;
 import com.ferrisys.repository.ModuleRepository;
 import jakarta.transaction.Transactional;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
@@ -23,7 +24,7 @@ public class ModuleServiceImpl {
     public void saveOrUpdate(ModuleDTO dto) {
         AuthModule module = moduleMapper.toEntity(dto);
         if (module.getId() != null && !moduleRepository.existsById(module.getId())) {
-            throw new RuntimeException("Módulo no encontrado");
+            throw new NotFoundException("Módulo no encontrado");
         }
         moduleRepository.save(module);
     }
@@ -36,7 +37,7 @@ public class ModuleServiceImpl {
 
     public void disableModule(UUID id) {
         AuthModule module = moduleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Módulo no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Módulo no encontrado"));
         module.setStatus(0);
         moduleRepository.save(module);
     }

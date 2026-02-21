@@ -19,6 +19,11 @@ import com.ferrisys.repository.RoleRepository;
 import com.ferrisys.repository.UserRepository;
 import com.ferrisys.service.UserService;
 import jakarta.transaction.Transactional;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.Email;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotEmpty;
+import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
@@ -84,7 +89,7 @@ public class AuthAdminController {
 
     @PostMapping("/users")
     @ResponseStatus(HttpStatus.CREATED)
-    public AdminUserResponse createUser(@RequestBody AdminUserRequest request) {
+    public AdminUserResponse createUser(@Valid @RequestBody AdminUserRequest request) {
         RegisterRequest register = new RegisterRequest();
         register.setUsername(request.username());
         register.setEmail(request.email());
@@ -101,7 +106,7 @@ public class AuthAdminController {
     }
 
     @PutMapping("/users/{id}")
-    public AdminUserResponse updateUser(@PathVariable UUID id, @RequestBody AdminUserRequest request) {
+    public AdminUserResponse updateUser(@PathVariable UUID id, @Valid @RequestBody AdminUserRequest request) {
         User user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("User not found"));
         user.setUsername(request.username());
         user.setEmail(request.email());
@@ -126,7 +131,7 @@ public class AuthAdminController {
 
     @PostMapping("/user-roles")
     @Transactional
-    public void assignUserRole(@RequestBody UserRoleRequest request) {
+    public void assignUserRole(@Valid @RequestBody UserRoleRequest request) {
         User user = userRepository.findById(request.userId()).orElseThrow(() -> new NotFoundException("User not found"));
         roleRepository.findById(request.roleId()).orElseThrow(() -> new NotFoundException("Role not found"));
         syncUserRoles(user, List.of(request.roleId()));
@@ -145,7 +150,7 @@ public class AuthAdminController {
 
     @PostMapping("/roles")
     @ResponseStatus(HttpStatus.CREATED)
-    public Role createRole(@RequestBody AdminRoleRequest request) {
+    public Role createRole(@Valid @RequestBody AdminRoleRequest request) {
         Role role = Role.builder()
                 .name(request.name())
                 .description(request.description())
@@ -155,7 +160,7 @@ public class AuthAdminController {
     }
 
     @PutMapping("/roles/{id}")
-    public Role updateRole(@PathVariable UUID id, @RequestBody AdminRoleRequest request) {
+    public Role updateRole(@PathVariable UUID id, @Valid @RequestBody AdminRoleRequest request) {
         Role role = roleRepository.findById(id).orElseThrow(() -> new NotFoundException("Role not found"));
         role.setName(request.name());
         role.setDescription(request.description());
@@ -185,7 +190,7 @@ public class AuthAdminController {
 
     @PostMapping("/modules")
     @ResponseStatus(HttpStatus.CREATED)
-    public AuthModule createModule(@RequestBody AdminModuleRequest request) {
+    public AuthModule createModule(@Valid @RequestBody AdminModuleRequest request) {
         AuthModule module = AuthModule.builder()
                 .name(request.name())
                 .description(request.description())
@@ -195,7 +200,7 @@ public class AuthAdminController {
     }
 
     @PutMapping("/modules/{id}")
-    public AuthModule updateModule(@PathVariable UUID id, @RequestBody AdminModuleRequest request) {
+    public AuthModule updateModule(@PathVariable UUID id, @Valid @RequestBody AdminModuleRequest request) {
         AuthModule module = moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Module not found"));
         module.setName(request.name());
         module.setDescription(request.description());
@@ -223,14 +228,14 @@ public class AuthAdminController {
 
     @PostMapping("/role-modules")
     @Transactional
-    public void saveRoleModules(@RequestBody RoleModuleRequest request) {
+    public void saveRoleModules(@Valid @RequestBody RoleModuleRequest request) {
         Role role = roleRepository.findById(request.roleId()).orElseThrow(() -> new NotFoundException("Role not found"));
         persistRoleModules(role, request.moduleIds());
     }
 
     @PutMapping("/role-modules/{roleId}")
     @Transactional
-    public RoleModulesDto updateRoleModules(@PathVariable UUID roleId, @RequestBody RoleModulesDto request) {
+    public RoleModulesDto updateRoleModules(@PathVariable UUID roleId, @Valid @RequestBody RoleModulesDto request) {
         Role role = roleRepository.findById(roleId).orElseThrow(() -> new NotFoundException("Role not found"));
         persistRoleModules(role, request.getModuleIds());
         List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndStatus(roleId, 1);
@@ -245,7 +250,7 @@ public class AuthAdminController {
 
     @PostMapping("/module-licenses")
     @ResponseStatus(HttpStatus.CREATED)
-    public ModuleLicense createLicense(@RequestBody ModuleLicenseRequest request) {
+    public ModuleLicense createLicense(@Valid @RequestBody ModuleLicenseRequest request) {
         AuthModule module = moduleRepository.findById(request.moduleId()).orElseThrow(() -> new NotFoundException("Module not found"));
         ModuleLicense license = ModuleLicense.builder()
                 .tenantId(request.tenantId())
@@ -322,11 +327,17 @@ public class AuthAdminController {
                 roleNames);
     }
 
-    public record AdminUserRequest(String username, String email, String fullName, String password, Integer status, List<UUID> roleIds) {}
+    public record AdminUserRequest(
+            @NotBlank(message = "username is required") String username,
+            @NotBlank(message = "email is required") @Email(message = "email must be valid") String email,
+            @NotBlank(message = "fullName is required") String fullName,
+            @NotBlank(message = "password is required") String password,
+            Integer status,
+            List<UUID> roleIds) {}
     public record AdminUserResponse(UUID id, String username, String email, String fullName, Integer status, List<UUID> roleIds, List<String> roleNames) {}
-    public record AdminRoleRequest(String name, String description, Integer status) {}
-    public record AdminModuleRequest(String name, String description, Integer status) {}
-    public record RoleModuleRequest(UUID roleId, List<UUID> moduleIds) {}
-    public record UserRoleRequest(UUID userId, UUID roleId) {}
-    public record ModuleLicenseRequest(UUID tenantId, UUID moduleId, Boolean enabled, OffsetDateTime expiresAt) {}
+    public record AdminRoleRequest(@NotBlank(message = "name is required") String name, @NotBlank(message = "description is required") String description, @NotNull(message = "status is required") Integer status) {}
+    public record AdminModuleRequest(@NotBlank(message = "name is required") String name, @NotBlank(message = "description is required") String description, @NotNull(message = "status is required") Integer status) {}
+    public record RoleModuleRequest(@NotNull(message = "roleId is required") UUID roleId, @NotEmpty(message = "moduleIds is required") List<UUID> moduleIds) {}
+    public record UserRoleRequest(@NotNull(message = "userId is required") UUID userId, @NotNull(message = "roleId is required") UUID roleId) {}
+    public record ModuleLicenseRequest(@NotNull(message = "tenantId is required") UUID tenantId, @NotNull(message = "moduleId is required") UUID moduleId, @NotNull(message = "enabled is required") Boolean enabled, OffsetDateTime expiresAt) {}
 }

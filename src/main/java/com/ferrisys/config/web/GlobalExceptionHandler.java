@@ -1,6 +1,7 @@
 package com.ferrisys.config.web;
 
 import com.ferrisys.common.exception.impl.BadRequestException;
+import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.common.exception.impl.NotFoundException;
 import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.persistence.EntityNotFoundException;
@@ -9,9 +10,11 @@ import java.time.OffsetDateTime;
 import java.util.stream.Collectors;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.AuthenticationException;
 import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
@@ -50,16 +53,22 @@ public class GlobalExceptionHandler {
         return buildErrorResponse(exception, HttpStatus.NOT_FOUND, request, message);
     }
 
+    @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class})
+    public ResponseEntity<ErrorResponse> handleConflict(Exception exception, HttpServletRequest request) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "Conflict";
+        return buildErrorResponse(exception, HttpStatus.CONFLICT, request, message);
+    }
+
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<ErrorResponse> handleAccessDenied(
             AccessDeniedException exception, HttpServletRequest request) {
         return buildErrorResponse(exception, HttpStatus.FORBIDDEN, request, "Access is denied");
     }
 
-    @ExceptionHandler(ExpiredJwtException.class)
-    public ResponseEntity<ErrorResponse> handleExpiredJwt(
-            ExpiredJwtException exception, HttpServletRequest request) {
-        return buildErrorResponse(exception, HttpStatus.UNAUTHORIZED, request, "Token expired");
+    @ExceptionHandler({AuthenticationException.class, ExpiredJwtException.class})
+    public ResponseEntity<ErrorResponse> handleAuthentication(
+            Exception exception, HttpServletRequest request) {
+        return buildErrorResponse(exception, HttpStatus.UNAUTHORIZED, request, "Authentication failed");
     }
 
     @ExceptionHandler(Exception.class)

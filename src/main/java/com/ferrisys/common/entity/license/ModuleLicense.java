@@ -1,5 +1,7 @@
 package com.ferrisys.common.entity.license;
 
+import com.ferrisys.common.audit.Auditable;
+
 import com.ferrisys.common.entity.user.AuthModule;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -26,7 +28,7 @@ import org.hibernate.annotations.GenericGenerator;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ModuleLicense implements Serializable {
+public class ModuleLicense extends Auditable implements Serializable {
 
     @Id
     @GeneratedValue(generator = "UUID")

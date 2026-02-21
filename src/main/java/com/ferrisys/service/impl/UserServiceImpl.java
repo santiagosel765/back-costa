@@ -1,8 +1,19 @@
 package com.ferrisys.service.impl;
 
+import com.ferrisys.common.dto.AuthResponse;
 import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
+import com.ferrisys.common.dto.RegisterRequest;
 import com.ferrisys.common.entity.user.AuthModule;
+import com.ferrisys.common.entity.user.AuthUserRole;
+import com.ferrisys.common.entity.user.Role;
+import com.ferrisys.common.entity.user.User;
+import com.ferrisys.common.entity.user.UserStatus;
+import com.ferrisys.common.enums.DefaultRole;
+import com.ferrisys.common.enums.DefaultUserStatus;
+import com.ferrisys.common.exception.impl.BadRequestException;
+import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.mapper.ModuleMapper;
 import com.ferrisys.repository.AuthUserRoleRepository;
 import com.ferrisys.repository.RoleModuleRepository;
@@ -11,29 +22,15 @@ import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.UserStatusRepository;
 import com.ferrisys.service.FeatureFlagService;
 import com.ferrisys.service.UserService;
-import com.ferrisys.common.dto.AuthResponse;
-import com.ferrisys.common.dto.RegisterRequest;
-import com.ferrisys.common.entity.user.Role;
-import com.ferrisys.common.entity.user.AuthUserRole;
-import com.ferrisys.common.entity.user.User;
-import com.ferrisys.common.entity.user.UserStatus;
-import com.ferrisys.config.security.JWTUtil;
-import com.ferrisys.common.exception.impl.BadRequestException;
-import com.ferrisys.common.exception.impl.NotFoundException;
-import io.jsonwebtoken.Claims;
 import jakarta.transaction.Transactional;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
-import com.ferrisys.common.enums.DefaultRole;
-import com.ferrisys.common.enums.DefaultUserStatus;
-
-import java.util.List;
-import java.util.UUID;
-
 
 @Service
 @RequiredArgsConstructor
@@ -41,12 +38,13 @@ public class UserServiceImpl implements UserService {
 
     private final UserRepository userRepository;
     private final AuthUserRoleRepository authUserRoleRepository;
-    private final RoleRepository roleRepository ;
-    private final UserStatusRepository userStatusRepository ;
+    private final RoleRepository roleRepository;
+    private final UserStatusRepository userStatusRepository;
     private final RoleModuleRepository roleModuleRepository;
     private final JWTUtil jwtUtil;
     private final FeatureFlagService featureFlagService;
     private final ModuleMapper moduleMapper;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
     public User getAuthUser(String username) {
@@ -76,7 +74,7 @@ public class UserServiceImpl implements UserService {
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new NotFoundException("User not found"));
 
-        user.setPassword(new BCryptPasswordEncoder().encode(newPassword));
+        user.setPassword(passwordEncoder.encode(newPassword));
         user.setStatus(new UserStatus(DefaultUserStatus.ACTIVE.getId()));
         userRepository.save(user);
     }
@@ -94,12 +92,12 @@ public class UserServiceImpl implements UserService {
         }
 
         UserStatus activeStatus = userStatusRepository.findById(DefaultUserStatus.ACTIVE.getId())
-                .orElseThrow(() -> new RuntimeException("Estado de usuario no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Estado de usuario no encontrado"));
 
         User user = User.builder()
                 .username(request.getUsername())
                 .email(request.getEmail())
-                .password(new BCryptPasswordEncoder().encode(request.getPassword()))
+                .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .status(activeStatus)
                 .build();
@@ -107,7 +105,7 @@ public class UserServiceImpl implements UserService {
         User saved = userRepository.save(user);
 
         Role defaultRole = roleRepository.findById(DefaultRole.USER.getId())
-                .orElseThrow(() -> new RuntimeException("Rol por defecto no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Rol por defecto no encontrado"));
 
         AuthUserRole userRole = AuthUserRole.builder()
                 .user(saved)
@@ -131,7 +129,7 @@ public class UserServiceImpl implements UserService {
     public AuthResponse authenticate(String username, String password) {
         User user = getAuthUser(username);
 
-        if (!new BCryptPasswordEncoder().matches(password, user.getPassword())) {
+        if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new BadRequestException("Invalid credentials");
         }
 
@@ -147,20 +145,22 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
-    public AuthResponse recoverPassword(String newPassword, String confirmPassword, String userToken) {
-        Claims claims = jwtUtil.getClaims(userToken);
-        String username = claims.getSubject();
+    public AuthResponse changePasswordForCurrentUser(String currentPassword, String newPassword) {
+        String currentUsername = jwtUtil.getCurrentUser();
+        User user = getAuthUser(currentUsername);
 
-        User user = getUserByUsername(username);
-        changePassword(user.getId(), newPassword, confirmPassword);
+        if (!passwordEncoder.matches(currentPassword, user.getPassword())) {
+            throw new BadRequestException("Current password is invalid");
+        }
 
-        String token = jwtUtil.generateToken(user);
-        AuthUserRole role = getUserRole(user.getId());
+        user.setPassword(passwordEncoder.encode(newPassword));
+        User saved = userRepository.save(user);
+        AuthUserRole role = getUserRole(saved.getId());
 
         return AuthResponse.builder()
-                .token(token)
-                .username(user.getUsername())
-                .email(user.getEmail())
+                .token(jwtUtil.generateToken(saved))
+                .username(saved.getUsername())
+                .email(saved.getEmail())
                 .role(role.getRole().getName())
                 .build();
     }
@@ -182,5 +182,4 @@ public class UserServiceImpl implements UserService {
                 result.getTotalElements());
         return PageResponse.from(pageDto);
     }
-
 }

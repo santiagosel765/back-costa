@@ -1,5 +1,7 @@
 package com.ferrisys.common.entity.user;
 
+import com.ferrisys.common.audit.Auditable;
+
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
@@ -22,7 +24,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @Builder
 @Table(name = "auth_module")
-public class AuthModule implements Serializable {
+public class AuthModule extends Auditable implements Serializable {
 
     @Id
     @GeneratedValue(generator = "UUID")
