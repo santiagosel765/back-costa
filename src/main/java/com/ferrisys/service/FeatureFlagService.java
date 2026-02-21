@@ -4,7 +4,19 @@ import java.util.UUID;
 
 public interface FeatureFlagService {
 
-    boolean enabled(UUID tenantId, String moduleSlug);
+    boolean isModuleEnabled(String moduleKey);
 
-    boolean enabledForCurrentUser(String moduleSlug);
+    boolean isModuleEnabled(UUID tenantId, String moduleKey);
+
+    void assertModuleEnabled(String moduleKey);
+
+    void evictTenantCache(UUID tenantId);
+
+    default boolean enabled(UUID tenantId, String moduleSlug) {
+        return isModuleEnabled(tenantId, moduleSlug);
+    }
+
+    default boolean enabledForCurrentUser(String moduleSlug) {
+        return isModuleEnabled(moduleSlug);
+    }
 }

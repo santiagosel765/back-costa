@@ -47,6 +47,12 @@ public class ModuleLicense extends Auditable implements Serializable {
     @Builder.Default
     private Boolean enabled = Boolean.TRUE;
 
+    @Column(name = "start_at")
+    private OffsetDateTime startAt;
+
+    @Column(name = "end_at")
+    private OffsetDateTime endAt;
+
     @Column(name = "expires_at")
     private OffsetDateTime expiresAt;
 }

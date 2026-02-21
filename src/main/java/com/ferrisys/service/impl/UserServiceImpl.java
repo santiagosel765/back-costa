@@ -185,12 +185,12 @@ public class UserServiceImpl implements UserService {
         Page<AuthModule> result = roleModuleRepository.findModulesByRoleId(
                 role.getRole().getId(), PageRequest.of(page, size));
         List<AuthModule> filteredModules = result.getContent().stream()
-                .filter(module -> featureFlagService.enabled(user.getTenant().getId(), module.getName()))
+                .filter(module -> featureFlagService.isModuleEnabled(user.getTenant().getId(), module.getName()))
                 .toList();
         Page<ModuleDTO> pageDto = new PageImpl<>(
                 moduleMapper.toDtoList(filteredModules),
                 result.getPageable(),
-                result.getTotalElements());
+                filteredModules.size());
         return PageResponse.from(pageDto);
     }
 
