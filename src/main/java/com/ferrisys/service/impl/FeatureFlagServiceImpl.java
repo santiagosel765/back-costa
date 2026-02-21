@@ -1,107 +1,105 @@
 package com.ferrisys.service.impl;
 
 import com.ferrisys.common.entity.license.ModuleLicense;
-import com.ferrisys.common.entity.user.AuthModule;
-import com.ferrisys.common.entity.user.User;
-import com.ferrisys.config.security.JWTUtil;
-import com.ferrisys.repository.ModuleLicenseRepository;
 import com.ferrisys.core.tenant.TenantContext;
-import com.ferrisys.repository.ModuleRepository;
-import com.ferrisys.repository.UserRepository;
+import com.ferrisys.repository.ModuleLicenseRepository;
 import com.ferrisys.service.FeatureFlagService;
 import java.text.Normalizer;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.HashMap;
 import java.util.Locale;
-import java.util.Optional;
+import java.util.Map;
 import java.util.UUID;
-import org.springframework.core.env.Environment;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.ConcurrentMap;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 
 @Service("featureFlagService")
 public class FeatureFlagServiceImpl implements FeatureFlagService {
 
-    private final ModuleRepository moduleRepository;
+    private static final long CACHE_TTL_SECONDS = 60;
+
     private final ModuleLicenseRepository moduleLicenseRepository;
-    private final UserRepository userRepository;
-    private final JWTUtil jwtUtil;
-    private final Environment environment;
+    private final ConcurrentMap<UUID, CachedModules> tenantModuleCache = new ConcurrentHashMap<>();
 
-    public FeatureFlagServiceImpl(
-            ModuleRepository moduleRepository,
-            ModuleLicenseRepository moduleLicenseRepository,
-            UserRepository userRepository,
-            JWTUtil jwtUtil,
-            Environment environment) {
-        this.moduleRepository = moduleRepository;
+    public FeatureFlagServiceImpl(ModuleLicenseRepository moduleLicenseRepository) {
         this.moduleLicenseRepository = moduleLicenseRepository;
-        this.userRepository = userRepository;
-        this.jwtUtil = jwtUtil;
-        this.environment = environment;
     }
 
     @Override
-    public boolean enabled(UUID tenantId, String moduleSlug) {
-        if (tenantId == null || moduleSlug == null || moduleSlug.isBlank()) {
-            return false;
-        }
-
-        String propertySlug = normalizeForProperty(moduleSlug);
-        boolean propertyEnabled = environment.getProperty(
-                "modules." + propertySlug + ".enabled", Boolean.class, Boolean.TRUE);
-        if (!propertyEnabled) {
-            return false;
-        }
-
-        String moduleName = normalizeForModule(moduleSlug);
-        Optional<AuthModule> moduleOpt = moduleRepository.findByNameIgnoreCaseAndTenantId(moduleName, tenantId);
-        if (moduleOpt.isEmpty()) {
-            return propertyEnabled;
-        }
-
-        AuthModule module = moduleOpt.get();
-        Optional<ModuleLicense> licenseOpt = moduleLicenseRepository.findByTenantIdAndModule_Id(
-                tenantId, module.getId());
-
-        if (licenseOpt.isEmpty()) {
-            return propertyEnabled;
-        }
-
-        ModuleLicense license = licenseOpt.get();
-        if (Boolean.FALSE.equals(license.getEnabled())) {
-            return false;
-        }
-
-        OffsetDateTime expiresAt = license.getExpiresAt();
-        return expiresAt == null || expiresAt.isAfter(OffsetDateTime.now());
+    public boolean isModuleEnabled(String moduleKey) {
+        return isModuleEnabled(getCurrentTenantIdOrThrow(), moduleKey);
     }
 
     @Override
-    public boolean enabledForCurrentUser(String moduleSlug) {
-        String username = jwtUtil.getCurrentUser();
-        if (username == null || username.isBlank()) {
+    public boolean isModuleEnabled(UUID tenantId, String moduleKey) {
+        if (tenantId == null || moduleKey == null || moduleKey.isBlank()) {
             return false;
         }
 
-        Optional<User> userOpt = userRepository.findByUsername(username);
-        if (userOpt.isEmpty() || userOpt.get().getTenant() == null) {
-            return false;
+        String normalizedKey = normalize(moduleKey);
+        CachedModules cachedModules = tenantModuleCache.compute(tenantId, (id, cached) -> {
+            if (cached == null || cached.isExpired()) {
+                return loadTenantModules(id);
+            }
+            return cached;
+        });
+
+        return cachedModules.modules().getOrDefault(normalizedKey, Boolean.TRUE);
+    }
+
+    @Override
+    public void assertModuleEnabled(String moduleKey) {
+        if (!isModuleEnabled(moduleKey)) {
+            throw new AccessDeniedException("Module '%s' is disabled for the current tenant".formatted(moduleKey));
+        }
+    }
+
+    @Override
+    public void evictTenantCache(UUID tenantId) {
+        if (tenantId != null) {
+            tenantModuleCache.remove(tenantId);
+        }
+    }
+
+    private CachedModules loadTenantModules(UUID tenantId) {
+        Map<String, Boolean> enabledMap = new HashMap<>();
+        OffsetDateTime now = OffsetDateTime.now();
+
+        for (ModuleLicense license : moduleLicenseRepository.findAllByTenantIdWithModule(tenantId)) {
+            if (license.getModule() == null || license.getModule().getName() == null) {
+                continue;
+            }
+
+            boolean enabled = Boolean.TRUE.equals(license.getEnabled());
+            OffsetDateTime startAt = license.getStartAt();
+            OffsetDateTime endAt = license.getEndAt() != null ? license.getEndAt() : license.getExpiresAt();
+
+            if (startAt != null && startAt.isAfter(now)) {
+                enabled = false;
+            }
+            if (endAt != null && endAt.isBefore(now)) {
+                enabled = false;
+            }
+
+            enabledMap.put(normalize(license.getModule().getName()), enabled);
         }
 
-        String contextTenant = TenantContext.getTenantId();
-        UUID tenantId = contextTenant != null ? UUID.fromString(contextTenant) : userOpt.get().getTenant().getId();
-        return enabled(tenantId, moduleSlug);
+        return new CachedModules(enabledMap, Instant.now().plusSeconds(CACHE_TTL_SECONDS));
     }
 
-    private String normalizeForProperty(String slug) {
-        return stripAccents(slug)
-                .trim()
-                .toLowerCase(Locale.ROOT)
-                .replaceAll("[^a-z0-9]+", "-")
-                .replaceAll("^-+|-+$", "");
+    private UUID getCurrentTenantIdOrThrow() {
+        String tenantId = TenantContext.getTenantId();
+        if (tenantId == null || tenantId.isBlank()) {
+            throw new AccessDeniedException("Tenant context is required");
+        }
+        return UUID.fromString(tenantId);
     }
 
-    private String normalizeForModule(String slug) {
-        return stripAccents(slug)
+    private String normalize(String key) {
+        return stripAccents(key)
                 .trim()
                 .replaceAll("[^A-Za-z0-9]+", "_")
                 .replaceAll("^_+|_+$", "")
@@ -110,5 +108,12 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
 
     private String stripAccents(String value) {
         return Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
+    }
+
+    private record CachedModules(Map<String, Boolean> modules, Instant expiresAt) {
+
+        private boolean isExpired() {
+            return Instant.now().isAfter(expiresAt);
+        }
     }
 }
