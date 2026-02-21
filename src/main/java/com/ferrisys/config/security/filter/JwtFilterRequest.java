@@ -2,11 +2,14 @@ package com.ferrisys.config.security.filter;
 
 import com.ferrisys.config.security.CustomUserDetailsService;
 import com.ferrisys.config.security.JWTUtil;
+import com.ferrisys.core.tenant.TenantContext;
+import com.ferrisys.core.tenant.TenantResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.util.Optional;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
@@ -23,6 +26,7 @@ public class JwtFilterRequest extends OncePerRequestFilter {
 
     private final JWTUtil jwtUtil;
     private final CustomUserDetailsService customUserDetailsService;
+    private final TenantResolver tenantResolver;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request,
@@ -56,16 +60,26 @@ public class JwtFilterRequest extends OncePerRequestFilter {
                     SecurityContextHolder.getContext().setAuthentication(authToken);
                 }
             }
+
+            if (SecurityContextHolder.getContext().getAuthentication() != null) {
+                Optional<String> tenantId = tenantResolver.resolve(request, jwt);
+                if (tenantId.isEmpty()) {
+                    response.setStatus(HttpServletResponse.SC_FORBIDDEN);
+                    response.getWriter().write("Missing tenant context");
+                    return;
+                }
+                TenantContext.setTenantId(tenantId.get());
+            }
+
+            filterChain.doFilter(request, response);
         } catch (io.jsonwebtoken.ExpiredJwtException e) {
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             response.getWriter().write("Token expired");
-            return;
         } catch (io.jsonwebtoken.JwtException | IllegalArgumentException e) {
             response.setStatus(HttpServletResponse.SC_BAD_REQUEST);
             response.getWriter().write("Invalid token");
-            return;
+        } finally {
+            TenantContext.clear();
         }
-
-        filterChain.doFilter(request, response);
     }
 }

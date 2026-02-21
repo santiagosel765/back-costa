@@ -40,4 +40,7 @@ public class AuthModule extends Auditable implements Serializable {
 
     @Column(nullable = false)
     private Integer status;
+
+    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
+    private UUID tenantId;
 }

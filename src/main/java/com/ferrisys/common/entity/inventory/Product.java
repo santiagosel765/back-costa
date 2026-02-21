@@ -45,6 +45,9 @@ public class Product extends Auditable implements Serializable {
     @Column(name = "company_id")
     private UUID companyId;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
+    private UUID tenantId;
+
     @Column(nullable = false)
     private Integer status;
 }

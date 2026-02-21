@@ -5,6 +5,7 @@ import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.entity.user.User;
 import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.repository.ModuleLicenseRepository;
+import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.repository.ModuleRepository;
 import com.ferrisys.repository.UserRepository;
 import com.ferrisys.service.FeatureFlagService;
@@ -52,7 +53,7 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
         }
 
         String moduleName = normalizeForModule(moduleSlug);
-        Optional<AuthModule> moduleOpt = moduleRepository.findByNameIgnoreCase(moduleName);
+        Optional<AuthModule> moduleOpt = moduleRepository.findByNameIgnoreCaseAndTenantId(moduleName, tenantId);
         if (moduleOpt.isEmpty()) {
             return propertyEnabled;
         }
@@ -82,7 +83,13 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
         }
 
         Optional<User> userOpt = userRepository.findByUsername(username);
-        return userOpt.filter(user -> enabled(user.getId(), moduleSlug)).isPresent();
+        if (userOpt.isEmpty() || userOpt.get().getTenant() == null) {
+            return false;
+        }
+
+        String contextTenant = TenantContext.getTenantId();
+        UUID tenantId = contextTenant != null ? UUID.fromString(contextTenant) : userOpt.get().getTenant().getId();
+        return enabled(tenantId, moduleSlug);
     }
 
     private String normalizeForProperty(String slug) {

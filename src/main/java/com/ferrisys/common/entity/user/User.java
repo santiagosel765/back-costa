@@ -8,6 +8,7 @@ import jakarta.persistence.Id;
 import jakarta.persistence.JoinColumn;
 import jakarta.persistence.ManyToOne;
 import jakarta.persistence.Table;
+import com.ferrisys.common.entity.tenant.Tenant;
 import org.hibernate.annotations.GenericGenerator;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
@@ -48,4 +49,8 @@ public class User extends Auditable implements Serializable {
     @ManyToOne
     @JoinColumn(name = "status_id", nullable = false)
     private UserStatus status;
+
+    @ManyToOne
+    @JoinColumn(name = "tenant_id")
+    private Tenant tenant;
 }
