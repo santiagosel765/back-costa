@@ -25,6 +25,8 @@ import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.UserStatusRepository;
 import com.ferrisys.service.FeatureFlagService;
 import com.ferrisys.service.UserService;
+import com.ferrisys.service.audit.AuditEventPublishRequest;
+import com.ferrisys.service.audit.AuditEventService;
 import jakarta.transaction.Transactional;
 import java.util.List;
 import java.util.UUID;
@@ -48,6 +50,7 @@ public class UserServiceImpl implements UserService {
     private final FeatureFlagService featureFlagService;
     private final ModuleMapper moduleMapper;
     private final TenantRepository tenantRepository;
+    private final AuditEventService auditEventService;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
@@ -120,6 +123,16 @@ public class UserServiceImpl implements UserService {
 
         authUserRoleRepository.save(userRole);
 
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenant() != null ? saved.getTenant().getId() : null)
+                .actor(saved.getUsername())
+                .actorUserId(saved.getId())
+                .action("USER_CREATED")
+                .entityType("USER")
+                .entityId(saved.getId().toString())
+                .payload(java.util.Map.of("username", saved.getUsername(), "email", saved.getEmail()))
+                .build());
+
         String token = jwtUtil.generateToken(saved);
 
         return AuthResponse.builder()
@@ -133,9 +146,30 @@ public class UserServiceImpl implements UserService {
     @Override
     @Transactional
     public AuthResponse authenticate(String username, String password) {
-        User user = getAuthUser(username);
+        User user;
+        try {
+            user = getAuthUser(username);
+        } catch (RuntimeException ex) {
+            auditEventService.publish(AuditEventPublishRequest.builder()
+                    .actor(username)
+                    .action("LOGIN_FAILED")
+                    .entityType("AUTH")
+                    .entityId(username)
+                    .payload(java.util.Map.of("username", username))
+                    .build());
+            throw ex;
+        }
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
+            auditEventService.publish(AuditEventPublishRequest.builder()
+                    .tenantId(user.getTenant() != null ? user.getTenant().getId() : null)
+                    .actor(username)
+                    .actorUserId(user.getId())
+                    .action("LOGIN_FAILED")
+                    .entityType("AUTH")
+                    .entityId(user.getId().toString())
+                    .payload(java.util.Map.of("username", username))
+                    .build());
             throw new BadRequestException("Invalid credentials");
         }
 
@@ -146,6 +180,16 @@ public class UserServiceImpl implements UserService {
 
         String token = jwtUtil.generateToken(user);
         AuthUserRole role = getUserRole(user.getId());
+
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(user.getTenant() != null ? user.getTenant().getId() : null)
+                .actor(username)
+                .actorUserId(user.getId())
+                .action("LOGIN_SUCCESS")
+                .entityType("AUTH")
+                .entityId(user.getId().toString())
+                .payload(java.util.Map.of("username", username))
+                .build());
 
         return AuthResponse.builder()
                 .token(token)
@@ -167,6 +211,16 @@ public class UserServiceImpl implements UserService {
         user.setPassword(passwordEncoder.encode(newPassword));
         User saved = userRepository.save(user);
         AuthUserRole role = getUserRole(saved.getId());
+
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenant() != null ? saved.getTenant().getId() : null)
+                .actor(saved.getUsername())
+                .actorUserId(saved.getId())
+                .action("PASSWORD_CHANGED")
+                .entityType("USER")
+                .entityId(saved.getId().toString())
+                .payload(java.util.Map.of("username", saved.getUsername()))
+                .build());
 
         return AuthResponse.builder()
                 .token(jwtUtil.generateToken(saved))

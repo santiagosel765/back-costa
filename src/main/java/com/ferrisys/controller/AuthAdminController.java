@@ -18,6 +18,8 @@ import com.ferrisys.repository.RoleModuleRepository;
 import com.ferrisys.repository.RoleRepository;
 import com.ferrisys.repository.UserRepository;
 import com.ferrisys.service.UserService;
+import com.ferrisys.service.audit.AuditEventPublishRequest;
+import com.ferrisys.service.audit.AuditEventService;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
@@ -62,8 +64,8 @@ public class AuthAdminController {
     private final AuthUserRoleRepository authUserRoleRepository;
     private final ModuleLicenseRepository moduleLicenseRepository;
     private final UserService userService;
+    private final AuditEventService auditEventService;
 
-    // --- Users ---
     @GetMapping("/users")
     public List<AdminUserResponse> listUsers() {
         List<User> users = userRepository.findAll();
@@ -102,6 +104,13 @@ public class AuthAdminController {
             user = userRepository.save(user);
         }
         syncUserRoles(user, request.roleIds());
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(user.getTenant() != null ? user.getTenant().getId() : null)
+                .action("USER_CREATED")
+                .entityType("USER")
+                .entityId(user.getId().toString())
+                .payload(Map.of("username", user.getUsername(), "email", user.getEmail()))
+                .build());
         return mapUser(user, authUserRoleRepository.findAllByUserIdIn(List.of(user.getId())));
     }
 
@@ -117,16 +126,28 @@ public class AuthAdminController {
         }
         User saved = userRepository.save(user);
         syncUserRoles(saved, request.roleIds());
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenant() != null ? saved.getTenant().getId() : null)
+                .action("USER_UPDATED")
+                .entityType("USER")
+                .entityId(saved.getId().toString())
+                .payload(Map.of("username", saved.getUsername(), "email", saved.getEmail()))
+                .build());
         return mapUser(saved, authUserRoleRepository.findAllByUserIdIn(List.of(saved.getId())));
     }
 
     @DeleteMapping("/users/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteUser(@PathVariable UUID id) {
-        if (!userRepository.existsById(id)) {
-            throw new NotFoundException("User not found");
-        }
+        User user = userRepository.findById(id).orElseThrow(() -> new NotFoundException("User not found"));
         userRepository.deleteById(id);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(user.getTenant() != null ? user.getTenant().getId() : null)
+                .action("USER_DELETED")
+                .entityType("USER")
+                .entityId(id.toString())
+                .payload(Map.of("username", user.getUsername()))
+                .build());
     }
 
     @PostMapping("/user-roles")
@@ -137,7 +158,6 @@ public class AuthAdminController {
         syncUserRoles(user, List.of(request.roleId()));
     }
 
-    // --- Roles ---
     @GetMapping("/roles")
     public List<Role> listRoles() {
         return roleRepository.findAll();
@@ -156,7 +176,15 @@ public class AuthAdminController {
                 .description(request.description())
                 .status(request.status())
                 .build();
-        return roleRepository.save(role);
+        Role saved = roleRepository.save(role);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenantId())
+                .action("ROLE_CREATED")
+                .entityType("ROLE")
+                .entityId(saved.getId().toString())
+                .payload(Map.of("name", saved.getName()))
+                .build());
+        return saved;
     }
 
     @PutMapping("/roles/{id}")
@@ -165,19 +193,31 @@ public class AuthAdminController {
         role.setName(request.name());
         role.setDescription(request.description());
         role.setStatus(request.status());
-        return roleRepository.save(role);
+        Role saved = roleRepository.save(role);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenantId())
+                .action("ROLE_UPDATED")
+                .entityType("ROLE")
+                .entityId(saved.getId().toString())
+                .payload(Map.of("name", saved.getName()))
+                .build());
+        return saved;
     }
 
     @DeleteMapping("/roles/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteRole(@PathVariable UUID id) {
-        if (!roleRepository.existsById(id)) {
-            throw new NotFoundException("Role not found");
-        }
+        Role role = roleRepository.findById(id).orElseThrow(() -> new NotFoundException("Role not found"));
         roleRepository.deleteById(id);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(role.getTenantId())
+                .action("ROLE_DELETED")
+                .entityType("ROLE")
+                .entityId(id.toString())
+                .payload(Map.of("name", role.getName()))
+                .build());
     }
 
-    // --- Modules ---
     @GetMapping("/modules")
     public List<AuthModule> listModules() {
         return moduleRepository.findAll();
@@ -196,7 +236,15 @@ public class AuthAdminController {
                 .description(request.description())
                 .status(request.status())
                 .build();
-        return moduleRepository.save(module);
+        AuthModule saved = moduleRepository.save(module);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenantId())
+                .action("MODULE_CREATED")
+                .entityType("MODULE")
+                .entityId(saved.getId().toString())
+                .payload(Map.of("name", saved.getName()))
+                .build());
+        return saved;
     }
 
     @PutMapping("/modules/{id}")
@@ -205,19 +253,31 @@ public class AuthAdminController {
         module.setName(request.name());
         module.setDescription(request.description());
         module.setStatus(request.status());
-        return moduleRepository.save(module);
+        AuthModule saved = moduleRepository.save(module);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(saved.getTenantId())
+                .action("MODULE_UPDATED")
+                .entityType("MODULE")
+                .entityId(saved.getId().toString())
+                .payload(Map.of("name", saved.getName()))
+                .build());
+        return saved;
     }
 
     @DeleteMapping("/modules/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteModule(@PathVariable UUID id) {
-        if (!moduleRepository.existsById(id)) {
-            throw new NotFoundException("Module not found");
-        }
+        AuthModule module = moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Module not found"));
         moduleRepository.deleteById(id);
+        auditEventService.publish(AuditEventPublishRequest.builder()
+                .tenantId(module.getTenantId())
+                .action("MODULE_DELETED")
+                .entityType("MODULE")
+                .entityId(id.toString())
+                .payload(Map.of("name", module.getName()))
+                .build());
     }
 
-    // --- Role Modules ---
     @GetMapping("/role-modules")
     @Transactional
     public RoleModulesDto getRoleModules(@RequestParam("roleId") UUID roleId) {
@@ -242,7 +302,6 @@ public class AuthAdminController {
         return buildRoleModulesDto(role, assignments);
     }
 
-    // --- Module Licenses ---
     @GetMapping("/module-licenses")
     public List<ModuleLicense> listLicenses() {
         return moduleLicenseRepository.findAll();
