@@ -1,29 +1,27 @@
-package com.ferrisys.common.entity.inventory;
+package com.ferrisys.common.entity.tenant;
 
-import com.ferrisys.common.audit.Auditable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.Id;
 import jakarta.persistence.Table;
-import org.hibernate.annotations.GenericGenerator;
+import java.io.Serializable;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
 
-import java.io.Serializable;
-
+@Entity
+@Table(name = "tenant")
 @Getter
 @Setter
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-@Entity
-@Table(name = "inv_category")
-public class Category extends Auditable implements Serializable {
+public class Tenant implements Serializable {
 
     @Id
     @GeneratedValue(generator = "UUID")
@@ -31,17 +29,10 @@ public class Category extends Auditable implements Serializable {
     @Column(columnDefinition = "uuid", updatable = false)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(nullable = false)
     private String name;
 
-    private String description;
-
-    @Column(name = "parent_category_id")
-    private UUID parentCategoryId;
-
     @Column(nullable = false)
-    private Integer status;
-
-    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
-    private UUID tenantId;
+    @Builder.Default
+    private Integer status = 1;
 }

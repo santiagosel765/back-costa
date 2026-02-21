@@ -46,7 +46,7 @@ public class CustomUserDetailsService implements UserDetailsService {
 
             if (role != null && role.getId() != null) {
                 roleModuleRepository.findModulesByRoleId(role.getId(), Pageable.unpaged())
-                        .forEach(module -> addModuleAuthority(authorities, module, user.getId()));
+                        .forEach(module -> addModuleAuthority(authorities, module, user.getTenant() != null ? user.getTenant().getId() : null));
             }
 
             if (log.isDebugEnabled()) {

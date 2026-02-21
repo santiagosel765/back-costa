@@ -4,6 +4,7 @@ import com.ferrisys.common.dto.AuthResponse;
 import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.RegisterRequest;
+import com.ferrisys.common.entity.tenant.Tenant;
 import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.entity.user.AuthUserRole;
 import com.ferrisys.common.entity.user.Role;
@@ -14,10 +15,12 @@ import com.ferrisys.common.enums.DefaultUserStatus;
 import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.config.security.JWTUtil;
+import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.mapper.ModuleMapper;
 import com.ferrisys.repository.AuthUserRoleRepository;
 import com.ferrisys.repository.RoleModuleRepository;
 import com.ferrisys.repository.RoleRepository;
+import com.ferrisys.repository.TenantRepository;
 import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.UserStatusRepository;
 import com.ferrisys.service.FeatureFlagService;
@@ -44,6 +47,7 @@ public class UserServiceImpl implements UserService {
     private final JWTUtil jwtUtil;
     private final FeatureFlagService featureFlagService;
     private final ModuleMapper moduleMapper;
+    private final TenantRepository tenantRepository;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     @Override
@@ -100,6 +104,7 @@ public class UserServiceImpl implements UserService {
                 .password(passwordEncoder.encode(request.getPassword()))
                 .fullName(request.getFullName())
                 .status(activeStatus)
+                .tenant(resolveOrCreateTenant(request.getUsername()))
                 .build();
 
         User saved = userRepository.save(user);
@@ -126,11 +131,17 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    @Transactional
     public AuthResponse authenticate(String username, String password) {
         User user = getAuthUser(username);
 
         if (!passwordEncoder.matches(password, user.getPassword())) {
             throw new BadRequestException("Invalid credentials");
+        }
+
+        if (user.getTenant() == null) {
+            user.setTenant(resolveOrCreateTenant(username));
+            user = userRepository.save(user);
         }
 
         String token = jwtUtil.generateToken(user);
@@ -174,12 +185,26 @@ public class UserServiceImpl implements UserService {
         Page<AuthModule> result = roleModuleRepository.findModulesByRoleId(
                 role.getRole().getId(), PageRequest.of(page, size));
         List<AuthModule> filteredModules = result.getContent().stream()
-                .filter(module -> featureFlagService.enabled(user.getId(), module.getName()))
+                .filter(module -> featureFlagService.enabled(user.getTenant().getId(), module.getName()))
                 .toList();
         Page<ModuleDTO> pageDto = new PageImpl<>(
                 moduleMapper.toDtoList(filteredModules),
                 result.getPageable(),
                 result.getTotalElements());
         return PageResponse.from(pageDto);
+    }
+
+    private Tenant resolveOrCreateTenant(String username) {
+        String contextTenantId = TenantContext.getTenantId();
+        if (contextTenantId != null && !contextTenantId.isBlank()) {
+            return tenantRepository.findById(UUID.fromString(contextTenantId))
+                    .orElseThrow(() -> new NotFoundException("Tenant not found"));
+        }
+
+        Tenant tenant = Tenant.builder()
+                .name("tenant-" + username)
+                .status(1)
+                .build();
+        return tenantRepository.save(tenant);
     }
 }
