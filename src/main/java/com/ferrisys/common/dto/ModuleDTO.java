@@ -1,4 +1,11 @@
 package com.ferrisys.common.dto;
 
-public record ModuleDTO(String id, String name, String description, Integer status) {
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+
+public record ModuleDTO(
+        String id,
+        @NotBlank(message = "name is required") String name,
+        @NotBlank(message = "description is required") String description,
+        @NotNull(message = "status is required") Integer status) {
 }

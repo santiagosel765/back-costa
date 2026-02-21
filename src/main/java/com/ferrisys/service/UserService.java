@@ -6,7 +6,6 @@ import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.RegisterRequest;
 import com.ferrisys.common.entity.user.AuthUserRole;
 import com.ferrisys.common.entity.user.User;
-
 import java.util.UUID;
 
 public interface UserService {
@@ -25,8 +24,7 @@ public interface UserService {
 
     AuthResponse authenticate(String username, String password);
 
-    AuthResponse recoverPassword(String newPassword, String confirmPassword, String userToken);
+    AuthResponse changePasswordForCurrentUser(String currentPassword, String newPassword);
 
     PageResponse<ModuleDTO> getModulesForCurrentUser(int page, int size);
-
 }

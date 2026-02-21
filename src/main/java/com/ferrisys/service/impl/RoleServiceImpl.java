@@ -5,17 +5,17 @@ import com.ferrisys.common.dto.RoleDTO;
 import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.entity.user.AuthRoleModule;
 import com.ferrisys.common.entity.user.Role;
+import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.repository.ModuleRepository;
 import com.ferrisys.repository.RoleModuleRepository;
 import com.ferrisys.repository.RoleRepository;
 import jakarta.transaction.Transactional;
+import java.util.List;
+import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
-import java.util.UUID;
-
-import java.util.List;
 
 @Service
 @RequiredArgsConstructor
@@ -30,7 +30,7 @@ public class RoleServiceImpl {
         Role role;
         if (dto.getId() != null) {
             role = roleRepository.findById(dto.getId())
-                    .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
+                    .orElseThrow(() -> new NotFoundException("Rol no encontrado"));
             role.setName(dto.getName());
             role.setDescription(dto.getDescription());
             role.setStatus(dto.getStatus());
@@ -44,12 +44,11 @@ public class RoleServiceImpl {
 
         Role saved = roleRepository.save(role);
 
-        // actualiza los módulos asociados
         roleModuleRepository.deleteByRole(saved);
         if (dto.getModuleIds() != null) {
             for (UUID moduleId : dto.getModuleIds()) {
                 AuthModule module = moduleRepository.findById(moduleId)
-                        .orElseThrow(() -> new RuntimeException("Módulo no encontrado"));
+                        .orElseThrow(() -> new NotFoundException("Módulo no encontrado"));
                 roleModuleRepository.save(AuthRoleModule.builder()
                         .role(saved)
                         .module(module)
@@ -76,7 +75,7 @@ public class RoleServiceImpl {
     @Transactional
     public void disableRole(UUID id) {
         Role role = roleRepository.findById(id)
-                .orElseThrow(() -> new RuntimeException("Rol no encontrado"));
+                .orElseThrow(() -> new NotFoundException("Rol no encontrado"));
         role.setStatus(0);
         roleRepository.save(role);
     }
