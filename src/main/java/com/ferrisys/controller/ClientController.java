@@ -43,6 +43,11 @@ public class ClientController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         PageResponse<ClientDTO> response = clientService.list(page, size);
-        return ApiResponse.list(response.getData(), response.getTotalItems(), response.getCurrentPage(), response.getPageSize(), response.getTotalPages());
+        return ApiResponse.list(
+                response.content(),
+                response.totalElements(),
+                response.page(),
+                response.size(),
+                response.totalPages());
     }
 }
