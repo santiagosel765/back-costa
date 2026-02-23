@@ -16,6 +16,7 @@ import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.config.license.ModuleLicenseInterceptor;
 import com.ferrisys.config.license.ModuleLicenseService;
 import com.ferrisys.config.license.ModuleResolver;
+import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.config.web.GlobalExceptionHandler;
 import com.ferrisys.config.web.ModuleGuardWebConfig;
 import com.ferrisys.core.tenant.TenantContext;
@@ -46,6 +47,9 @@ class ClientControllerIntegrationTest {
 
     @MockBean
     private ModuleLicenseService moduleLicenseService;
+
+    @MockBean
+    private JWTUtil jwtUtil;
 
     private UUID tenantId;
 
