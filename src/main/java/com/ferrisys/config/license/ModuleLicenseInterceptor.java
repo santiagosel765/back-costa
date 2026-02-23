@@ -1,38 +1,38 @@
 package com.ferrisys.config.license;
 
-import com.ferrisys.service.FeatureFlagService;
+import com.ferrisys.core.tenant.TenantContextHolder;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
-import org.springframework.core.annotation.AnnotatedElementUtils;
+import java.util.Optional;
+import java.util.UUID;
 import org.springframework.stereotype.Component;
-import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 @Component
 public class ModuleLicenseInterceptor implements HandlerInterceptor {
 
-    private final FeatureFlagService featureFlagService;
+    private final ModuleResolver moduleResolver;
+    private final ModuleLicenseService moduleLicenseService;
+    private final TenantContextHolder tenantContextHolder;
 
-    public ModuleLicenseInterceptor(FeatureFlagService featureFlagService) {
-        this.featureFlagService = featureFlagService;
+    public ModuleLicenseInterceptor(
+            ModuleResolver moduleResolver,
+            ModuleLicenseService moduleLicenseService,
+            TenantContextHolder tenantContextHolder) {
+        this.moduleResolver = moduleResolver;
+        this.moduleLicenseService = moduleLicenseService;
+        this.tenantContextHolder = tenantContextHolder;
     }
 
     @Override
     public boolean preHandle(HttpServletRequest request, HttpServletResponse response, Object handler) {
-        if (!(handler instanceof HandlerMethod handlerMethod)) {
+        Optional<String> moduleCode = moduleResolver.resolve(request);
+        if (moduleCode.isEmpty()) {
             return true;
         }
 
-        RequireModule requirement = AnnotatedElementUtils.findMergedAnnotation(handlerMethod.getMethod(), RequireModule.class);
-        if (requirement == null) {
-            requirement = AnnotatedElementUtils.findMergedAnnotation(handlerMethod.getBeanType(), RequireModule.class);
-        }
-
-        if (requirement == null) {
-            return true;
-        }
-
-        featureFlagService.assertModuleEnabled(requirement.value());
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        moduleLicenseService.assertLicensed(tenantId, moduleCode.get());
         return true;
     }
 }
