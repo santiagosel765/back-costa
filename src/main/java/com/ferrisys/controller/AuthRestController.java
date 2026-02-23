@@ -6,6 +6,7 @@ import com.ferrisys.common.dto.LoginRequest;
 import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.RegisterRequest;
+import com.ferrisys.common.dto.authcontext.AuthContextResponse;
 import com.ferrisys.service.UserService;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
@@ -55,5 +56,11 @@ public class AuthRestController {
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "10") int size) {
         return userService.getModulesForCurrentUser(page, size);
+    }
+
+    @GetMapping("/me/context")
+    @ResponseStatus(HttpStatus.OK)
+    public AuthContextResponse getCurrentContext() {
+        return userService.getContextForCurrentUser();
     }
 }

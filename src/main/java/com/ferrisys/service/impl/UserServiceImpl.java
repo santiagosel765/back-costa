@@ -4,6 +4,12 @@ import com.ferrisys.common.dto.AuthResponse;
 import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.RegisterRequest;
+import com.ferrisys.common.dto.authcontext.AuthContextModuleDto;
+import com.ferrisys.common.dto.authcontext.AuthContextResponse;
+import com.ferrisys.common.dto.authcontext.AuthContextTenantDto;
+import com.ferrisys.common.dto.authcontext.AuthContextTokenDto;
+import com.ferrisys.common.dto.authcontext.AuthContextUserDto;
+import com.ferrisys.common.entity.license.ModuleLicense;
 import com.ferrisys.common.entity.tenant.Tenant;
 import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.entity.user.AuthUserRole;
@@ -14,10 +20,12 @@ import com.ferrisys.common.enums.DefaultRole;
 import com.ferrisys.common.enums.DefaultUserStatus;
 import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.common.util.ModuleKeyNormalizer;
 import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.mapper.ModuleMapper;
 import com.ferrisys.repository.AuthUserRoleRepository;
+import com.ferrisys.repository.ModuleLicenseRepository;
 import com.ferrisys.repository.RoleModuleRepository;
 import com.ferrisys.repository.RoleRepository;
 import com.ferrisys.repository.TenantRepository;
@@ -28,8 +36,15 @@ import com.ferrisys.service.UserService;
 import com.ferrisys.service.audit.AuditEventPublishRequest;
 import com.ferrisys.service.audit.AuditEventService;
 import jakarta.transaction.Transactional;
+import java.time.Instant;
+import java.time.OffsetDateTime;
+import java.util.Comparator;
 import java.util.List;
+import java.util.Map;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageImpl;
@@ -46,6 +61,7 @@ public class UserServiceImpl implements UserService {
     private final RoleRepository roleRepository;
     private final UserStatusRepository userStatusRepository;
     private final RoleModuleRepository roleModuleRepository;
+    private final ModuleLicenseRepository moduleLicenseRepository;
     private final JWTUtil jwtUtil;
     private final FeatureFlagService featureFlagService;
     private final ModuleMapper moduleMapper;
@@ -133,10 +149,11 @@ public class UserServiceImpl implements UserService {
                 .payload(java.util.Map.of("username", saved.getUsername(), "email", saved.getEmail()))
                 .build());
 
-        String token = jwtUtil.generateToken(saved);
+        AuthArtifacts authArtifacts = buildAuthArtifacts(saved);
 
         return AuthResponse.builder()
-                .token(token)
+                .token(authArtifacts.token())
+                .expiresAt(authArtifacts.expiresAt())
                 .username(saved.getUsername())
                 .email(saved.getEmail())
                 .role(defaultRole.getName())
@@ -178,8 +195,8 @@ public class UserServiceImpl implements UserService {
             user = userRepository.save(user);
         }
 
-        String token = jwtUtil.generateToken(user);
         AuthUserRole role = getUserRole(user.getId());
+        AuthArtifacts authArtifacts = buildAuthArtifacts(user);
 
         auditEventService.publish(AuditEventPublishRequest.builder()
                 .tenantId(user.getTenant() != null ? user.getTenant().getId() : null)
@@ -192,7 +209,8 @@ public class UserServiceImpl implements UserService {
                 .build());
 
         return AuthResponse.builder()
-                .token(token)
+                .token(authArtifacts.token())
+                .expiresAt(authArtifacts.expiresAt())
                 .username(user.getUsername())
                 .email(user.getEmail())
                 .role(role.getRole().getName())
@@ -222,8 +240,11 @@ public class UserServiceImpl implements UserService {
                 .payload(java.util.Map.of("username", saved.getUsername()))
                 .build());
 
+        AuthArtifacts authArtifacts = buildAuthArtifacts(saved);
+
         return AuthResponse.builder()
-                .token(jwtUtil.generateToken(saved))
+                .token(authArtifacts.token())
+                .expiresAt(authArtifacts.expiresAt())
                 .username(saved.getUsername())
                 .email(saved.getEmail())
                 .role(role.getRole().getName())
@@ -248,6 +269,121 @@ public class UserServiceImpl implements UserService {
         return PageResponse.from(pageDto);
     }
 
+    @Override
+    public AuthContextResponse getContextForCurrentUser() {
+        String username = jwtUtil.getCurrentUser();
+        User user = getAuthUser(username);
+        List<String> roles = authUserRoleRepository.findActiveRoleNamesByUserId(user.getId());
+        List<UUID> roleIds = authUserRoleRepository.findActiveRoleIdsByUserId(user.getId());
+        List<AuthModule> modules = getEnabledModules(user, roleIds);
+
+        // The request token may represent a previous auth state (e.g. before role/license updates).
+        // We always emit a fresh context token to keep frontend UX claims in sync with backend policy.
+        AuthArtifacts authArtifacts = buildAuthArtifacts(user);
+
+        return AuthContextResponse.builder()
+                .user(AuthContextUserDto.builder()
+                        .id(user.getId().toString())
+                        .username(user.getUsername())
+                        .fullName(user.getFullName())
+                        .email(user.getEmail())
+                        .status(user.getStatus() != null ? user.getStatus().getId() : null)
+                        .build())
+                .tenant(buildTenantDto(user))
+                .roles(roles)
+                .modules(toContextModules(user, modules))
+                .token(AuthContextTokenDto.builder()
+                        .accessToken(authArtifacts.token())
+                        .expiresAt(authArtifacts.expiresAt())
+                        .build())
+                .serverTime(Instant.now())
+                .build();
+    }
+
+    private AuthContextTenantDto buildTenantDto(User user) {
+        String tenantId = null;
+        String tenantName = null;
+        Integer tenantStatus = null;
+
+        if (user.getTenant() != null) {
+            tenantId = user.getTenant().getId().toString();
+            tenantName = user.getTenant().getName();
+            tenantStatus = user.getTenant().getStatus();
+        }
+
+        if (tenantId == null) {
+            // TODO: while migrating older accounts, tenant can still be inferred dynamically during login.
+            String contextTenantId = TenantContext.getTenantId();
+            tenantId = contextTenantId;
+            if (contextTenantId != null) {
+                Optional<Tenant> tenant = tenantRepository.findById(UUID.fromString(contextTenantId));
+                if (tenant.isPresent()) {
+                    tenantName = tenant.get().getName();
+                    tenantStatus = tenant.get().getStatus();
+                }
+            }
+        }
+
+        return AuthContextTenantDto.builder()
+                .tenantId(tenantId)
+                .name(tenantName)
+                .status(tenantStatus)
+                .build();
+    }
+
+    private List<AuthContextModuleDto> toContextModules(User user, List<AuthModule> modules) {
+        UUID tenantId = user.getTenant() != null ? user.getTenant().getId() : null;
+        Map<UUID, ModuleLicense> licensesByModuleId = tenantId == null
+                ? Map.of()
+                : moduleLicenseRepository.findAllByTenantIdWithModule(tenantId).stream()
+                .filter(license -> license.getModule() != null)
+                .collect(Collectors.toMap(license -> license.getModule().getId(), Function.identity(), (a, b) -> a));
+
+        return modules.stream()
+                .map(module -> AuthContextModuleDto.builder()
+                        .key(ModuleKeyNormalizer.normalize(module.getName()))
+                        .label(module.getName())
+                        .enabled(Boolean.TRUE)
+                        .expiresAt(resolveLicenseExpiration(licensesByModuleId.get(module.getId())))
+                        .build())
+                .sorted(Comparator.comparing(AuthContextModuleDto::getKey, Comparator.nullsLast(String::compareTo)))
+                .toList();
+    }
+
+    private OffsetDateTime resolveLicenseExpiration(ModuleLicense license) {
+        if (license == null) {
+            return null;
+        }
+        if (license.getEndAt() != null) {
+            return license.getEndAt();
+        }
+        return license.getExpiresAt();
+    }
+
+    private List<AuthModule> getEnabledModules(User user, List<UUID> roleIds) {
+        if (roleIds == null || roleIds.isEmpty()) {
+            return List.of();
+        }
+
+        UUID tenantId = user.getTenant() != null ? user.getTenant().getId() : null;
+        return roleModuleRepository.findDistinctModulesByRoleIds(roleIds).stream()
+                .filter(module -> tenantId == null || featureFlagService.isModuleEnabled(tenantId, module.getName()))
+                .toList();
+    }
+
+    private AuthArtifacts buildAuthArtifacts(User user) {
+        List<String> roles = authUserRoleRepository.findActiveRoleNamesByUserId(user.getId());
+        List<UUID> roleIds = authUserRoleRepository.findActiveRoleIdsByUserId(user.getId());
+        List<String> moduleKeys = getEnabledModules(user, roleIds).stream()
+                .map(AuthModule::getName)
+                .map(ModuleKeyNormalizer::normalize)
+                .toList();
+
+        String token = jwtUtil.generateToken(user, roles, moduleKeys);
+        return new AuthArtifacts(token, jwtUtil.extractExpiration(token));
+    }
+
+
     private Tenant resolveOrCreateTenant(String username) {
         String contextTenantId = TenantContext.getTenantId();
         if (contextTenantId != null && !contextTenantId.isBlank()) {
@@ -260,5 +396,8 @@ public class UserServiceImpl implements UserService {
                 .status(1)
                 .build();
         return tenantRepository.save(tenant);
+    }
+
+    private record AuthArtifacts(String token, Instant expiresAt) {
     }
 }
