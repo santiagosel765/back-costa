@@ -19,5 +19,11 @@ public class AuthContextUserDto {
     private String username;
     private String fullName;
     private String email;
-    private UUID status;
+    /**
+     * Legacy compatibility field consumed by frontend. It now returns a stable status key (e.g. ACTIVE).
+     */
+    private String status;
+    private UUID statusId;
+    private String statusKey;
+    private String statusLabel;
 }

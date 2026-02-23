@@ -281,23 +281,68 @@ public class UserServiceImpl implements UserService {
         // We always emit a fresh context token to keep frontend UX claims in sync with backend policy.
         AuthArtifacts authArtifacts = buildAuthArtifacts(user);
 
+        List<AuthContextModuleDto> contextModules = toContextModules(user, modules);
+
         return AuthContextResponse.builder()
-                .user(AuthContextUserDto.builder()
-                        .id(user.getId().toString())
-                        .username(user.getUsername())
-                        .fullName(user.getFullName())
-                        .email(user.getEmail())
-                        .status(user.getStatus() != null ? user.getStatus().getStatusId() : null)
-                        .build())
+                .user(buildContextUser(user))
                 .tenant(buildTenantDto(user))
                 .roles(roles)
-                .modules(toContextModules(user, modules))
+                .modules(contextModules)
+                .permissions(buildPermissions(roles, contextModules))
                 .token(AuthContextTokenDto.builder()
                         .accessToken(authArtifacts.token())
                         .expiresAt(authArtifacts.expiresAt())
                         .build())
                 .serverTime(Instant.now())
                 .build();
+    }
+
+    private AuthContextUserDto buildContextUser(User user) {
+        UserStatus status = user.getStatus();
+        String statusKey = null;
+        String statusLabel = null;
+        UUID statusId = null;
+
+        if (status != null) {
+            statusId = status.getStatusId();
+            statusKey = status.getName();
+            statusLabel = status.getDescription();
+            if (statusKey == null && DefaultUserStatus.ACTIVE.getId().equals(statusId)) {
+                statusKey = DefaultUserStatus.ACTIVE.name();
+            }
+            if (statusKey == null && DefaultUserStatus.INACTIVE.getId().equals(statusId)) {
+                statusKey = DefaultUserStatus.INACTIVE.name();
+            }
+        }
+
+        return AuthContextUserDto.builder()
+                .id(user.getId().toString())
+                .username(user.getUsername())
+                .fullName(user.getFullName())
+                .email(user.getEmail())
+                .status(statusKey)
+                .statusId(statusId)
+                .statusKey(statusKey)
+                .statusLabel(statusLabel)
+                .build();
+    }
+
+    private Map<String, List<String>> buildPermissions(List<String> roles, List<AuthContextModuleDto> modules) {
+        if (modules == null || modules.isEmpty()) {
+            return Map.of();
+        }
+
+        boolean isAdmin = roles != null && roles.stream().anyMatch(role -> DefaultRole.ADMIN.name().equalsIgnoreCase(role));
+        List<String> defaultCapabilities = isAdmin ? List.of("read", "write") : List.of("read");
+
+        return modules.stream()
+                .filter(module -> Boolean.TRUE.equals(module.getEnabled()))
+                .filter(module -> module.getKey() != null)
+                .collect(Collectors.toMap(
+                        AuthContextModuleDto::getKey,
+                        module -> defaultCapabilities,
+                        (existing, replacement) -> existing,
+                        java.util.LinkedHashMap::new));
     }
 
     private AuthContextTenantDto buildTenantDto(User user) {
