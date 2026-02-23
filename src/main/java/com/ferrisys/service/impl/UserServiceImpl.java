@@ -287,7 +287,7 @@ public class UserServiceImpl implements UserService {
                         .username(user.getUsername())
                         .fullName(user.getFullName())
                         .email(user.getEmail())
-                        .status(user.getStatus() != null ? user.getStatus().getId() : null)
+                        .status(user.getStatus() != null ? user.getStatus().getStatusId() : null)
                         .build())
                 .tenant(buildTenantDto(user))
                 .roles(roles)

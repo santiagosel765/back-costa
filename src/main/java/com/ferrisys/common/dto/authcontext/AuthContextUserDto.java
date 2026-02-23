@@ -6,6 +6,8 @@ import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
 
+import java.util.UUID;
+
 @Getter
 @Setter
 @NoArgsConstructor
@@ -17,5 +19,5 @@ public class AuthContextUserDto {
     private String username;
     private String fullName;
     private String email;
-    private Integer status;
+    private UUID status;
 }
