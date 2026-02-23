@@ -2,6 +2,7 @@ package com.ferrisys.common.dto.authcontext;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Map;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -19,7 +20,7 @@ public class AuthContextResponse {
     private AuthContextTenantDto tenant;
     private List<String> roles;
     private List<AuthContextModuleDto> modules;
-    private List<String> permissions;
+    private Map<String, List<String>> permissions;
     private AuthContextTokenDto token;
     private Instant serverTime;
 }

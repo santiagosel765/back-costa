@@ -73,10 +73,11 @@ Both scripts install missing frontend dependencies, launch `./mvnw spring-boot:r
 
 After login, the frontend can call `GET /v1/auth/me/context` with a Bearer token to bootstrap SaaS context in one request:
 
-- `user`: identity/profile basics.
+- `user`: identity/profile basics, with stable status fields (`status`, `statusKey`, `statusId`, `statusLabel`).
 - `tenant`: tenant id and metadata when available.
 - `roles`: active role names.
 - `modules`: tenant+role enabled modules with normalized `key`, human `label`, and optional `expiresAt` from license.
+- `permissions`: capability map by module key (for example `{"INVENTARIO": ["read"]}`).
 - `token`: refreshed JWT (`accessToken`) plus `expiresAt` metadata.
 - `serverTime`: backend timestamp for client-side drift checks.
 
@@ -88,12 +89,55 @@ JWT claims now include:
 
 > Security note: claims are for UX/context only. Backend authorization and license checks remain enforced server-side.
 
+### Response sample
+
+```json
+{
+  "user": {
+    "id": "6cde6b18-4c8b-4429-b4d5-257a0bf8c7b7",
+    "username": "admin1",
+    "fullName": "Administrador General",
+    "email": "admin1@ferrisys.local",
+    "status": "ACTIVE",
+    "statusId": "6b393ccc-1eba-4075-9fb2-80091d80f87e",
+    "statusKey": "ACTIVE",
+    "statusLabel": "Usuario activo"
+  },
+  "tenant": {
+    "tenantId": "<tenant-uuid>",
+    "name": "tenant-admin1",
+    "status": 1
+  },
+  "roles": ["ADMIN"],
+  "modules": [
+    {
+      "key": "INVENTARIO",
+      "label": "Inventario",
+      "enabled": true,
+      "expiresAt": null
+    }
+  ],
+  "permissions": {
+    "INVENTARIO": ["read", "write"]
+  },
+  "token": {
+    "accessToken": "<jwt>",
+    "expiresAt": "2026-01-01T00:00:00Z"
+  },
+  "serverTime": "2026-01-01T00:00:00Z"
+}
+```
+
 ### Manual QA
 
 1. Run backend.
 2. `POST /v1/auth/login` with `admin1/admin123` and copy `token`.
 3. `GET /v1/auth/me/context` with `Authorization: Bearer <token>`:
    - expect `200`
-   - expect `user`, `tenant.tenantId`, and non-empty `modules[]`.
-4. Disable one module license for the same tenant (UI/admin SQL) and repeat step 3:
-   - disabled module must no longer be present in `modules[]`.
+   - expect `user.status = "ACTIVE"` (or another stable key), not a random UUID value.
+   - expect `user.statusId` present for traceability.
+   - expect non-empty `roles[]`, `modules[]`, and non-null `permissions`.
+4. Test with a non-admin user:
+   - `permissions` should map each enabled module to at least `["read"]`.
+5. Disable one module license for the same tenant (UI/admin SQL) and repeat step 3:
+   - disabled module must no longer be present in `modules[]` and in `permissions`.
