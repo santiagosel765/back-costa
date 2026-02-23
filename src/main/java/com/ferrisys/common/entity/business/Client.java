@@ -1,13 +1,20 @@
 package com.ferrisys.common.entity.business;
 
 import com.ferrisys.common.audit.Auditable;
-import jakarta.persistence.*;
-import lombok.*;
-import org.hibernate.annotations.GenericGenerator;
-import java.util.UUID;
-
-
+import jakarta.persistence.Column;
+import jakarta.persistence.Entity;
+import jakarta.persistence.GeneratedValue;
+import jakarta.persistence.Id;
+import jakarta.persistence.Table;
 import java.io.Serializable;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
+import lombok.Getter;
+import lombok.NoArgsConstructor;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
 
 @Getter
 @Setter
@@ -24,6 +31,9 @@ public class Client extends Auditable implements Serializable {
     @Column(columnDefinition = "uuid", updatable = false)
     private UUID id;
 
+    @Column(name = "tenant_id", nullable = false, columnDefinition = "uuid")
+    private UUID tenantId;
+
     @Column(nullable = false)
     private String name;
 
@@ -38,4 +48,11 @@ public class Client extends Auditable implements Serializable {
 
     @Column(nullable = false)
     private Integer status;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean active = Boolean.TRUE;
+
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
 }

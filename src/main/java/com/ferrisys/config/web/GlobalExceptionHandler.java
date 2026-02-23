@@ -1,21 +1,15 @@
 package com.ferrisys.config.web;
 
+import com.ferrisys.common.api.ApiError;
+import com.ferrisys.common.api.ErrorCode;
+import com.ferrisys.common.exception.ModuleNotLicensedException;
 import com.ferrisys.common.exception.impl.BadRequestException;
-import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.common.exception.impl.NotFoundException;
-import io.jsonwebtoken.ExpiredJwtException;
 import jakarta.persistence.EntityNotFoundException;
-import jakarta.servlet.http.HttpServletRequest;
-import java.time.OffsetDateTime;
-import java.util.stream.Collectors;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.AuthenticationException;
-import org.springframework.validation.FieldError;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -23,90 +17,41 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 @ControllerAdvice
 public class GlobalExceptionHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
-
-    @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<ErrorResponse> handleMethodArgumentNotValid(
-            MethodArgumentNotValidException exception, HttpServletRequest request) {
-        String message = exception.getBindingResult().getFieldErrors().stream()
-                .map(this::formatValidationError)
-                .collect(Collectors.joining(", "));
-
-        if (message.isBlank()) {
-            message = "Validation failed";
-        }
-
-        return buildErrorResponse(exception, HttpStatus.BAD_REQUEST, request, message);
-    }
-
-    @ExceptionHandler({IllegalArgumentException.class, BadRequestException.class})
-    public ResponseEntity<ErrorResponse> handleIllegalArgument(
-            RuntimeException exception, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : "Bad request";
-        return buildErrorResponse(exception, HttpStatus.BAD_REQUEST, request, message);
+    @ExceptionHandler(ModuleNotLicensedException.class)
+    public ResponseEntity<ApiError> handleModuleNotLicensed(ModuleNotLicensedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiError.of(ErrorCode.MODULE_NOT_LICENSED, "Module not licensed", HttpStatus.FORBIDDEN.value()));
     }
 
     @ExceptionHandler({EntityNotFoundException.class, NotFoundException.class})
-    public ResponseEntity<ErrorResponse> handleEntityNotFound(
-            RuntimeException exception, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : "Resource not found";
-        return buildErrorResponse(exception, HttpStatus.NOT_FOUND, request, message);
+    public ResponseEntity<ApiError> handleEntityNotFound(RuntimeException exception) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "Entity not found";
+        return ResponseEntity.status(HttpStatus.NOT_FOUND)
+                .body(ApiError.of(ErrorCode.ENTITY_NOT_FOUND, message, HttpStatus.NOT_FOUND.value()));
     }
 
-    @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class})
-    public ResponseEntity<ErrorResponse> handleConflict(Exception exception, HttpServletRequest request) {
-        String message = exception.getMessage() != null ? exception.getMessage() : "Conflict";
-        return buildErrorResponse(exception, HttpStatus.CONFLICT, request, message);
+    @ExceptionHandler({MethodArgumentNotValidException.class, IllegalArgumentException.class, BadRequestException.class})
+    public ResponseEntity<ApiError> handleValidation(Exception exception) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "Validation error";
+        return ResponseEntity.badRequest()
+                .body(ApiError.of(ErrorCode.VALIDATION_ERROR, message, HttpStatus.BAD_REQUEST.value()));
+    }
+
+    @ExceptionHandler({AuthenticationException.class})
+    public ResponseEntity<ApiError> handleUnauthorized(Exception exception) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(ApiError.of(ErrorCode.UNAUTHORIZED, "Unauthorized", HttpStatus.UNAUTHORIZED.value()));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<ErrorResponse> handleAccessDenied(
-            AccessDeniedException exception, HttpServletRequest request) {
-        return buildErrorResponse(exception, HttpStatus.FORBIDDEN, request, "Access is denied");
-    }
-
-    @ExceptionHandler({AuthenticationException.class, ExpiredJwtException.class})
-    public ResponseEntity<ErrorResponse> handleAuthentication(
-            Exception exception, HttpServletRequest request) {
-        return buildErrorResponse(exception, HttpStatus.UNAUTHORIZED, request, "Authentication failed");
+    public ResponseEntity<ApiError> handleAccessDenied(AccessDeniedException exception) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                .body(ApiError.of(ErrorCode.UNAUTHORIZED, "Unauthorized", HttpStatus.FORBIDDEN.value()));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<ErrorResponse> handleGenericException(
-            Exception exception, HttpServletRequest request) {
-        String message = "Unexpected error. Please contact support if the problem persists.";
-        return buildErrorResponse(exception, HttpStatus.INTERNAL_SERVER_ERROR, request, message);
+    public ResponseEntity<ApiError> handleGenericException(Exception exception) {
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(ApiError.of(ErrorCode.INTERNAL_ERROR, "Internal error", HttpStatus.INTERNAL_SERVER_ERROR.value()));
     }
-
-    private String formatValidationError(FieldError error) {
-        return error.getField() + ": " + error.getDefaultMessage();
-    }
-
-    private ResponseEntity<ErrorResponse> buildErrorResponse(
-            Exception exception, HttpStatus status, HttpServletRequest request, String message) {
-        if (status.is5xxServerError()) {
-            log.error(
-                    "{} {} resulted in {} {}",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    status.value(),
-                    status.getReasonPhrase(),
-                    exception);
-        } else {
-            log.warn(
-                    "{} {} resulted in {} {}: {}",
-                    request.getMethod(),
-                    request.getRequestURI(),
-                    status.value(),
-                    status.getReasonPhrase(),
-                    message);
-        }
-
-        ErrorResponse response = new ErrorResponse(
-                OffsetDateTime.now(), status.value(), status.getReasonPhrase(), message, request.getRequestURI());
-        return ResponseEntity.status(status).body(response);
-    }
-
-    private record ErrorResponse(
-            OffsetDateTime timestamp, int status, String error, String message, String path) {}
 }
