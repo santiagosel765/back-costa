@@ -1,14 +1,13 @@
 package com.ferrisys.service.impl;
 
 import com.ferrisys.common.entity.license.ModuleLicense;
+import com.ferrisys.common.util.ModuleKeyNormalizer;
 import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.repository.ModuleLicenseRepository;
 import com.ferrisys.service.FeatureFlagService;
-import java.text.Normalizer;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.util.HashMap;
-import java.util.Locale;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,7 +38,7 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
             return false;
         }
 
-        String normalizedKey = normalize(moduleKey);
+        String normalizedKey = ModuleKeyNormalizer.normalize(moduleKey);
         CachedModules cachedModules = tenantModuleCache.compute(tenantId, (id, cached) -> {
             if (cached == null || cached.isExpired()) {
                 return loadTenantModules(id);
@@ -84,7 +83,7 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
                 enabled = false;
             }
 
-            enabledMap.put(normalize(license.getModule().getName()), enabled);
+            enabledMap.put(ModuleKeyNormalizer.normalize(license.getModule().getName()), enabled);
         }
 
         return new CachedModules(enabledMap, Instant.now().plusSeconds(CACHE_TTL_SECONDS));
@@ -96,18 +95,6 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
             throw new AccessDeniedException("Tenant context is required");
         }
         return UUID.fromString(tenantId);
-    }
-
-    private String normalize(String key) {
-        return stripAccents(key)
-                .trim()
-                .replaceAll("[^A-Za-z0-9]+", "_")
-                .replaceAll("^_+|_+$", "")
-                .toUpperCase(Locale.ROOT);
-    }
-
-    private String stripAccents(String value) {
-        return Normalizer.normalize(value, Normalizer.Form.NFD).replaceAll("\\p{M}+", "");
     }
 
     private record CachedModules(Map<String, Boolean> modules, Instant expiresAt) {

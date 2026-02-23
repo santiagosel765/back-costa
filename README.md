@@ -66,3 +66,34 @@ The repository includes helper scripts that start the backend and frontend toget
 
 Both scripts install missing frontend dependencies, launch `./mvnw spring-boot:run` for this service, and start the Angular dev server. Use `Ctrl+C` to stop both processes.
 
+
+---
+
+## 🔎 Auth context contract (`/v1/auth/me/context`)
+
+After login, the frontend can call `GET /v1/auth/me/context` with a Bearer token to bootstrap SaaS context in one request:
+
+- `user`: identity/profile basics.
+- `tenant`: tenant id and metadata when available.
+- `roles`: active role names.
+- `modules`: tenant+role enabled modules with normalized `key`, human `label`, and optional `expiresAt` from license.
+- `token`: refreshed JWT (`accessToken`) plus `expiresAt` metadata.
+- `serverTime`: backend timestamp for client-side drift checks.
+
+JWT claims now include:
+
+- `tenant_id`
+- `roles`
+- `modules`
+
+> Security note: claims are for UX/context only. Backend authorization and license checks remain enforced server-side.
+
+### Manual QA
+
+1. Run backend.
+2. `POST /v1/auth/login` with `admin1/admin123` and copy `token`.
+3. `GET /v1/auth/me/context` with `Authorization: Bearer <token>`:
+   - expect `200`
+   - expect `user`, `tenant.tenantId`, and non-empty `modules[]`.
+4. Disable one module license for the same tenant (UI/admin SQL) and repeat step 3:
+   - disabled module must no longer be present in `modules[]`.
