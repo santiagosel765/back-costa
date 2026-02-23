@@ -6,6 +6,8 @@ import jakarta.persistence.Id;
 import jakarta.persistence.PrePersist;
 import jakarta.persistence.Table;
 import java.time.LocalDateTime;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -57,7 +59,8 @@ public class AuditEvent {
     private String userAgent;
 
     @Column(name = "payload_json", columnDefinition = "jsonb")
-    private String payloadJson;
+    @JdbcTypeCode(SqlTypes.JSON)
+    private String payloadJson; // o JsonNode / Map
 
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
