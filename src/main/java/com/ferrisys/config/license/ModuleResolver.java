@@ -14,6 +14,8 @@ public class ModuleResolver {
     static {
         MODULE_BY_PATH_PREFIX.put("/v1/clients", "clients");
         MODULE_BY_PATH_PREFIX.put("/v1/providers", "providers");
+        MODULE_BY_PATH_PREFIX.put("/v1/config", "config");
+        MODULE_BY_PATH_PREFIX.put("/v1/org", "org");
     }
 
     public Optional<String> resolve(HttpServletRequest request) {
