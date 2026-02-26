@@ -141,3 +141,18 @@ JWT claims now include:
    - `permissions` should map each enabled module to at least `["read"]`.
 5. Disable one module license for the same tenant (UI/admin SQL) and repeat step 3:
    - disabled module must no longer be present in `modules[]` and in `permissions`.
+
+## Sprint 1 Config + Org
+
+Parámetros default por tenant (auto-seed idempotente):
+- `sales.quote.requires_approval`
+- `sales.quote.required_role`
+- `doc.numbering.scope`
+- `storage.mode`
+- `inventory.expiry.enabled`
+
+Nuevos endpoints:
+- Config: `/v1/config/currencies`, `/v1/config/taxes`, `/v1/config/parameters`, `/v1/config/payment-methods`, `/v1/config/document-types`.
+- Org: `/v1/org/branches`, `/v1/org/branches/{branchId}/warehouses`, `/v1/org/warehouses/{id}`, `/v1/org/user/branches`.
+
+Todos los endpoints aplican aislamiento por tenant y soft delete.
