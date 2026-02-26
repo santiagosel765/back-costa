@@ -22,6 +22,7 @@ import com.ferrisys.config.web.GlobalExceptionHandler;
 import com.ferrisys.config.web.ModuleGuardWebConfig;
 import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.core.tenant.TenantContextHolder;
+import com.ferrisys.core.tenant.TenantResolver;
 import com.ferrisys.service.business.ClientService;
 import java.util.List;
 import java.util.UUID;
@@ -29,6 +30,10 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.boot.autoconfigure.ImportAutoConfiguration;
+import org.springframework.boot.autoconfigure.data.jpa.JpaRepositoriesAutoConfiguration;
+import org.springframework.boot.autoconfigure.jdbc.DataSourceAutoConfiguration;
+import org.springframework.boot.autoconfigure.orm.jpa.HibernateJpaAutoConfiguration;
 import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
@@ -37,8 +42,21 @@ import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(controllers = ClientController.class)
 @AutoConfigureMockMvc(addFilters = false)
-@Import({GlobalExceptionHandler.class, ModuleGuardWebConfig.class, ModuleLicenseInterceptor.class, ModuleResolver.class, TenantContextHolder.class})
+@Import({
+        GlobalExceptionHandler.class,
+        ModuleGuardWebConfig.class,
+        ModuleLicenseInterceptor.class,
+        ModuleResolver.class,
+        TenantContextHolder.class
+})
+@ImportAutoConfiguration(exclude = {
+        DataSourceAutoConfiguration.class,
+        HibernateJpaAutoConfiguration.class,
+        JpaRepositoriesAutoConfiguration.class
+})
 class ClientControllerIntegrationTest {
+
+    private static final String TENANT_HEADER = "X-Tenant-Id";
 
     @Autowired
     private MockMvc mockMvc;
@@ -54,6 +72,9 @@ class ClientControllerIntegrationTest {
 
     @MockBean
     private CustomUserDetailsService customUserDetailsService;
+
+    @MockBean
+    private TenantResolver tenantResolver;
 
     private UUID tenantId;
 
@@ -74,7 +95,8 @@ class ClientControllerIntegrationTest {
                 .when(moduleLicenseService)
                 .assertLicensed(eq(tenantId), eq("clients"));
 
-        mockMvc.perform(get("/v1/clients/list"))
+        mockMvc.perform(get("/v1/clients/list")
+                        .header(TENANT_HEADER, tenantId.toString()))
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("MODULE_NOT_LICENSED"))
                 .andExpect(jsonPath("$.message").value("Module not licensed"));
@@ -83,9 +105,13 @@ class ClientControllerIntegrationTest {
     @Test
     void shouldReturn200WhenLicenseIsActive() throws Exception {
         when(clientService.list(0, 10))
-                .thenReturn(new PageResponse<>(List.of(ClientDTO.builder().id(UUID.randomUUID()).name("ACME").build()), 1, 1, 0, 10));
+                .thenReturn(new PageResponse<>(
+                        List.of(ClientDTO.builder().id(UUID.randomUUID()).name("ACME").build()),
+                        1, 1, 0, 10
+                ));
 
-        mockMvc.perform(get("/v1/clients/list"))
+        mockMvc.perform(get("/v1/clients/list")
+                        .header(TENANT_HEADER, tenantId.toString()))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].name").value("ACME"))
                 .andExpect(jsonPath("$.total").value(1));
@@ -98,7 +124,8 @@ class ClientControllerIntegrationTest {
         UUID clientId = UUID.randomUUID();
         when(clientService.getById(any())).thenThrow(new NotFoundException("Cliente no encontrado"));
 
-        mockMvc.perform(get("/v1/clients/{id}", clientId))
+        mockMvc.perform(get("/v1/clients/{id}", clientId)
+                        .header(TENANT_HEADER, tenantId.toString()))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("ENTITY_NOT_FOUND"));
     }
