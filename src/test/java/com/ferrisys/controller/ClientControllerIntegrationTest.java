@@ -56,8 +56,7 @@ import org.springframework.test.web.servlet.MockMvc;
         GlobalExceptionHandler.class,
         ModuleGuardWebConfig.class,
         ModuleLicenseInterceptor.class,
-        ModuleResolver.class,
-        TenantContextHolder.class
+        ModuleResolver.class
 })
 @ImportAutoConfiguration(exclude = {
         DataSourceAutoConfiguration.class,
@@ -67,6 +66,9 @@ import org.springframework.test.web.servlet.MockMvc;
 class ClientControllerIntegrationTest {
 
     private static final String TENANT_HEADER = "X-Tenant-Id";
+
+    @MockBean
+    private TenantContextHolder tenantContextHolder;
 
     @Autowired
     private MockMvc mockMvc;
