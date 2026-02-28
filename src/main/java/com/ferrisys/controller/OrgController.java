@@ -92,9 +92,20 @@ public class OrgController {
         return ApiResponse.single(null);
     }
 
-    @GetMapping("/user/branches")
+    @GetMapping("/me/branches")
     public ApiResponse<List<BranchDTO>> currentUserBranches() {
         List<BranchDTO> branches = orgService.currentUserBranches();
         return ApiResponse.single(branches);
+    }
+
+    @GetMapping("/user/branches")
+    public ApiResponse<List<BranchDTO>> currentUserBranchesLegacy() {
+        return currentUserBranches();
+    }
+
+    @GetMapping("/me/branches/{branchId}/validate")
+    public ApiResponse<Void> validateCurrentUserBranch(@PathVariable UUID branchId) {
+        orgService.validateCurrentUserBranch(branchId);
+        return ApiResponse.single(null);
     }
 }

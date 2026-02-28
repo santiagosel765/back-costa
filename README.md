@@ -153,7 +153,7 @@ Parámetros default por tenant (auto-seed idempotente):
 
 Nuevos endpoints:
 - Config: `/v1/config/currencies`, `/v1/config/taxes`, `/v1/config/parameters`, `/v1/config/payment-methods`, `/v1/config/document-types`.
-- Org: `/v1/org/branches`, `/v1/org/branches/{branchId}/warehouses`, `/v1/org/warehouses/{id}`, `/v1/org/user/branches`.
+- Org: `/v1/org/branches`, `/v1/org/branches/{branchId}/warehouses`, `/v1/org/warehouses/{id}`, `/v1/org/user/branches`, `/v1/org/me/branches`, `/v1/org/me/branches/{branchId}/validate`.
 
 Todos los endpoints aplican aislamiento por tenant y soft delete.
 
@@ -172,3 +172,15 @@ Reglas del endpoint de asignaciones:
 - Debe enviarse al menos `userId` o `branchId` para listar.
 - Si la asignación ya existe activa, responde conflicto (409).
 - Si existe soft-deleted, se reactiva al crear.
+
+
+## Sprint 3 Sucursal activa
+
+Cambios principales:
+- Nuevo endpoint `GET /v1/org/me/branches` para obtener sucursales activas del usuario autenticado (tenant-scoped, active, sin soft delete).
+- Nuevo endpoint `GET /v1/org/me/branches/{branchId}/validate` para validar la sucursal activa seleccionada por el cliente.
+  - `200` si la sucursal existe y está asignada activamente al usuario.
+  - `403` si la sucursal existe en el tenant pero no pertenece al usuario.
+  - `404` si la sucursal no existe en el tenant o está eliminada/inactiva.
+- Se conserva `GET /v1/org/user/branches` por compatibilidad y reutiliza la misma lógica de negocio.
+- Se agregó utilidad en `OrgService` (`validateCurrentUserBranch`) para que otros módulos validen el `branchId` actual de forma estándar.
