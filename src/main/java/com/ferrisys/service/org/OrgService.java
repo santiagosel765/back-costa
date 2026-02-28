@@ -23,4 +23,6 @@ public interface OrgService {
     void deleteUserBranchAssignment(UUID id);
 
     List<BranchDTO> currentUserBranches();
+
+    void validateCurrentUserBranch(UUID branchId);
 }

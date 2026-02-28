@@ -27,6 +27,7 @@ import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -205,9 +206,7 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public List<BranchDTO> currentUserBranches() {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        String username = jwtUtil.getCurrentUser();
-        User user = userRepository.findByUsername(username)
-                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+        User user = getCurrentUser();
 
         List<UserBranchAssignment> assignments = userBranchAssignmentRepository
                 .findByTenantIdAndUserIdAndActiveTrueAndDeletedAtIsNull(tenantId, user.getId());
@@ -217,6 +216,29 @@ public class OrgServiceImpl implements OrgService {
                 .filter(branch -> Boolean.TRUE.equals(branch.getActive()) && branch.getDeletedAt() == null)
                 .map(branchMapper::toDto)
                 .toList();
+    }
+
+    @Override
+    public void validateCurrentUserBranch(UUID branchId) {
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        User user = getCurrentUser();
+
+        ensureBranch(branchId, tenantId);
+
+        boolean assigned = userBranchAssignmentRepository
+                .findByTenantIdAndUserIdAndBranch_IdAndDeletedAtIsNull(tenantId, user.getId(), branchId)
+                .filter(assignment -> Boolean.TRUE.equals(assignment.getActive()))
+                .isPresent();
+
+        if (!assigned) {
+            throw new AccessDeniedException("No tiene acceso a la sucursal indicada");
+        }
+    }
+
+    private User getCurrentUser() {
+        String username = jwtUtil.getCurrentUser();
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
     }
 
     private Branch ensureBranch(UUID branchId, UUID tenantId) {

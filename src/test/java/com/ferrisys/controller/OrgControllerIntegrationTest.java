@@ -2,6 +2,7 @@ package com.ferrisys.controller;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
@@ -40,6 +41,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMock
 import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
+import org.springframework.security.access.AccessDeniedException;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(
@@ -143,4 +145,34 @@ class OrgControllerIntegrationTest {
                 .andExpect(status().isBadRequest())
                 .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
     }
+
+    @Test
+    void shouldListCurrentUserBranchesInMeEndpoint() throws Exception {
+        when(orgService.currentUserBranches())
+                .thenReturn(List.of(new BranchDTO(UUID.randomUUID().toString(), "SCL", "Sucursal Centro", null, null, true, null)));
+
+        mockMvc.perform(get("/v1/org/me/branches"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].code").value("SCL"));
+    }
+
+    @Test
+    void shouldValidateCurrentUserBranch() throws Exception {
+        UUID branchId = UUID.randomUUID();
+
+        mockMvc.perform(get("/v1/org/me/branches/{branchId}/validate", branchId))
+                .andExpect(status().isOk());
+    }
+
+    @Test
+    void shouldReturn403WhenValidatingBranchWithoutAssignment() throws Exception {
+        UUID branchId = UUID.randomUUID();
+        doThrow(new AccessDeniedException("Unauthorized"))
+                .when(orgService).validateCurrentUserBranch(branchId);
+
+        mockMvc.perform(get("/v1/org/me/branches/{branchId}/validate", branchId))
+                .andExpect(status().isForbidden())
+                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
+    }
 }
+
