@@ -51,9 +51,17 @@ import org.springframework.test.web.servlet.MockMvc;
         }
 )
 @AutoConfigureMockMvc(addFilters = false)
-@Import({GlobalExceptionHandler.class, ModuleGuardWebConfig.class, ModuleLicenseInterceptor.class, ModuleResolver.class, TenantContextHolder.class})
+@Import({
+        GlobalExceptionHandler.class,
+        ModuleGuardWebConfig.class,
+        ModuleLicenseInterceptor.class,
+        ModuleResolver.class
+})
 @ImportAutoConfiguration(exclude = {DataSourceAutoConfiguration.class, HibernateJpaAutoConfiguration.class, JpaRepositoriesAutoConfiguration.class})
 class OrgControllerIntegrationTest {
+
+    @MockBean
+    private TenantContextHolder tenantContextHolder;
 
     @Autowired
     private MockMvc mockMvc;
