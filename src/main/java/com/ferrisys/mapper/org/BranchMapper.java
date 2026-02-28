@@ -16,6 +16,7 @@ public interface BranchMapper extends IdMappingSupport {
     Branch toEntity(BranchDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     BranchDTO toDto(Branch entity);
 
     List<BranchDTO> toDtoList(List<Branch> entities);

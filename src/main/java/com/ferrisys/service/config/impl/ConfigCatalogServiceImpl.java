@@ -12,6 +12,7 @@ import com.ferrisys.common.entity.config.Parameter;
 import com.ferrisys.common.entity.config.PaymentMethod;
 import com.ferrisys.common.entity.config.Tax;
 import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.core.tenant.TenantContextHolder;
 import com.ferrisys.mapper.config.CurrencyMapper;
 import com.ferrisys.mapper.config.DocumentTypeMapper;
@@ -46,6 +47,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     private final ParameterMapper parameterMapper;
     private final PaymentMethodMapper paymentMethodMapper;
     private final DocumentTypeMapper documentTypeMapper;
+    private final JWTUtil jwtUtil;
 
     @Override
     public PageResponse<CurrencyDTO> listCurrencies(int page, int size, String search) {
@@ -62,7 +64,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         Currency entity = currencyMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
-        entity.setActive(Boolean.TRUE);
+        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return currencyMapper.toDto(currencyRepository.save(entity));
@@ -77,6 +79,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setCode(dto.code());
         entity.setName(dto.name());
         entity.setDescription(dto.description());
+        if (dto.active() != null) {
+            entity.setActive(dto.active());
+        }
         return currencyMapper.toDto(currencyRepository.save(entity));
     }
 
@@ -105,7 +110,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         Tax entity = taxMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
-        entity.setActive(Boolean.TRUE);
+        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return taxMapper.toDto(taxRepository.save(entity));
@@ -121,6 +126,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setName(dto.name());
         entity.setDescription(dto.description());
         entity.setRate(dto.rate());
+        if (dto.active() != null) {
+            entity.setActive(dto.active());
+        }
         return taxMapper.toDto(taxRepository.save(entity));
     }
 
@@ -137,7 +145,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     @Override
     public PageResponse<ParameterDTO> listParameters(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        var p = parameterRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndCodeContainingIgnoreCase(
+        var p = parameterRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(page, size));
         return PageResponse.of(parameterMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
@@ -149,7 +157,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         Parameter entity = parameterMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
-        entity.setActive(Boolean.TRUE);
+        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return parameterMapper.toDto(parameterRepository.save(entity));
@@ -165,6 +173,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setName(dto.name());
         entity.setDescription(dto.description());
         entity.setValue(dto.value());
+        if (dto.active() != null) {
+            entity.setActive(dto.active());
+        }
         return parameterMapper.toDto(parameterRepository.save(entity));
     }
 
@@ -193,7 +204,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         PaymentMethod entity = paymentMethodMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
-        entity.setActive(Boolean.TRUE);
+        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return paymentMethodMapper.toDto(paymentMethodRepository.save(entity));
@@ -208,6 +219,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setCode(dto.code());
         entity.setName(dto.name());
         entity.setDescription(dto.description());
+        if (dto.active() != null) {
+            entity.setActive(dto.active());
+        }
         return paymentMethodMapper.toDto(paymentMethodRepository.save(entity));
     }
 
@@ -236,7 +250,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         DocumentType entity = documentTypeMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
-        entity.setActive(Boolean.TRUE);
+        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return documentTypeMapper.toDto(documentTypeRepository.save(entity));
@@ -251,6 +265,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setCode(dto.code());
         entity.setName(dto.name());
         entity.setDescription(dto.description());
+        if (dto.active() != null) {
+            entity.setActive(dto.active());
+        }
         return documentTypeMapper.toDto(documentTypeRepository.save(entity));
     }
 
@@ -268,9 +285,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         return search == null ? "" : search;
     }
 
-    private void softDelete(Currency entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); }
-    private void softDelete(Tax entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); }
-    private void softDelete(Parameter entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); }
-    private void softDelete(PaymentMethod entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); }
-    private void softDelete(DocumentType entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); }
+    private void softDelete(Currency entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
+    private void softDelete(Tax entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
+    private void softDelete(Parameter entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
+    private void softDelete(PaymentMethod entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
+    private void softDelete(DocumentType entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
 }

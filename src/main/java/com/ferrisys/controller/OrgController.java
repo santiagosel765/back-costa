@@ -3,7 +3,9 @@ package com.ferrisys.controller;
 import com.ferrisys.common.api.ApiResponse;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
+import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.config.license.RequireModule;
 import com.ferrisys.service.org.OrgService;
 import java.util.List;
@@ -64,6 +66,29 @@ public class OrgController {
     @DeleteMapping("/warehouses/{id}")
     public ApiResponse<Void> deleteWarehouse(@PathVariable UUID id) {
         orgService.deleteWarehouse(id);
+        return ApiResponse.single(null);
+    }
+
+    @GetMapping("/user-branch-assignments")
+    public ApiResponse<List<UserBranchAssignmentDTO>> listUserBranchAssignments(@RequestParam(required = false) UUID userId,
+                                                                                 @RequestParam(required = false) UUID branchId,
+                                                                                 @RequestParam(defaultValue = "0") int page,
+                                                                                 @RequestParam(defaultValue = "10") int size) {
+        if (userId == null && branchId == null) {
+            throw new BadRequestException("Debe enviar userId o branchId");
+        }
+        PageResponse<UserBranchAssignmentDTO> response = orgService.listUserBranchAssignments(userId, branchId, page, size);
+        return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
+    }
+
+    @PostMapping("/user-branch-assignments")
+    public ApiResponse<UserBranchAssignmentDTO> createUserBranchAssignment(@RequestBody UserBranchAssignmentDTO dto) {
+        return ApiResponse.single(orgService.createUserBranchAssignment(UUID.fromString(dto.userId()), UUID.fromString(dto.branchId())));
+    }
+
+    @DeleteMapping("/user-branch-assignments/{id}")
+    public ApiResponse<Void> deleteUserBranchAssignment(@PathVariable UUID id) {
+        orgService.deleteUserBranchAssignment(id);
         return ApiResponse.single(null);
     }
 

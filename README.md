@@ -156,3 +156,19 @@ Nuevos endpoints:
 - Org: `/v1/org/branches`, `/v1/org/branches/{branchId}/warehouses`, `/v1/org/warehouses/{id}`, `/v1/org/user/branches`.
 
 Todos los endpoints aplican aislamiento por tenant y soft delete.
+
+
+## Sprint 2 Config + Org
+
+Cambios principales:
+- DTOs de Config/Org ahora exponen `active` y `updatedAt` para alinear contrato con frontend.
+- Soft delete en catálogos cfg/org y asignaciones de sucursal ahora guarda `deletedBy` con el usuario actual (`JWTUtil.getCurrentUser()`).
+- Nuevos endpoints para asignaciones usuario↔sucursal:
+  - `GET /v1/org/user-branch-assignments?userId=&branchId=&page=&size=`
+  - `POST /v1/org/user-branch-assignments` body: `{ "userId": "...", "branchId": "..." }`
+  - `DELETE /v1/org/user-branch-assignments/{id}`
+
+Reglas del endpoint de asignaciones:
+- Debe enviarse al menos `userId` o `branchId` para listar.
+- Si la asignación ya existe activa, responde conflicto (409).
+- Si existe soft-deleted, se reactiva al crear.

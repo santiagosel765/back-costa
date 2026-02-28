@@ -2,6 +2,7 @@ package com.ferrisys.service.org;
 
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
 import java.util.List;
 import java.util.UUID;
@@ -16,6 +17,10 @@ public interface OrgService {
     WarehouseDTO saveWarehouse(UUID branchId, WarehouseDTO dto);
     WarehouseDTO updateWarehouse(UUID id, WarehouseDTO dto);
     void deleteWarehouse(UUID id);
+
+    PageResponse<UserBranchAssignmentDTO> listUserBranchAssignments(UUID userId, UUID branchId, int page, int size);
+    UserBranchAssignmentDTO createUserBranchAssignment(UUID userId, UUID branchId);
+    void deleteUserBranchAssignment(UUID id);
 
     List<BranchDTO> currentUserBranches();
 }

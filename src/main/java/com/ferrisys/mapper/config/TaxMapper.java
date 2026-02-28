@@ -16,6 +16,7 @@ public interface TaxMapper extends IdMappingSupport {
     Tax toEntity(TaxDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     TaxDTO toDto(Tax entity);
 
     List<TaxDTO> toDtoList(List<Tax> entities);

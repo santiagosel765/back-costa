@@ -16,6 +16,7 @@ public interface CurrencyMapper extends IdMappingSupport {
     Currency toEntity(CurrencyDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     CurrencyDTO toDto(Currency entity);
 
     List<CurrencyDTO> toDtoList(List<Currency> entities);

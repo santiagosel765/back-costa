@@ -16,6 +16,7 @@ public interface DocumentTypeMapper extends IdMappingSupport {
     DocumentType toEntity(DocumentTypeDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     DocumentTypeDTO toDto(DocumentType entity);
 
     List<DocumentTypeDTO> toDtoList(List<DocumentType> entities);
