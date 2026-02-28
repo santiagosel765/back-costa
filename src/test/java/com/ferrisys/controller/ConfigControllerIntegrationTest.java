@@ -77,7 +77,7 @@ class ConfigControllerIntegrationTest {
     @Test
     void shouldListCurrencies() throws Exception {
         when(service.listCurrencies(0, 10, ""))
-                .thenReturn(new PageResponse<>(List.of(new CurrencyDTO(UUID.randomUUID().toString(), "USD", "Dollar", null)), 1, 1, 0, 10));
+                .thenReturn(new PageResponse<>(List.of(new CurrencyDTO(UUID.randomUUID().toString(), "USD", "Dollar", null, true, null)), 1, 1, 0, 10));
 
         mockMvc.perform(get("/v1/config/currencies"))
                 .andExpect(status().isOk())

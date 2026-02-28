@@ -16,6 +16,7 @@ public interface ParameterMapper extends IdMappingSupport {
     Parameter toEntity(ParameterDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     ParameterDTO toDto(Parameter entity);
 
     List<ParameterDTO> toDtoList(List<Parameter> entities);

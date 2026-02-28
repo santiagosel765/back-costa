@@ -1,13 +1,16 @@
 package com.ferrisys.controller;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
 import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.config.license.ModuleLicenseInterceptor;
 import com.ferrisys.config.license.ModuleLicenseService;
@@ -73,7 +76,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldListBranches() throws Exception {
         when(orgService.listBranches(0, 10, ""))
-                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null)), 1, 1, 0, 10));
+                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 0, 10));
 
         mockMvc.perform(get("/v1/org/branches"))
                 .andExpect(status().isOk())
@@ -89,5 +92,37 @@ class OrgControllerIntegrationTest {
                         .content("{\"code\":\"MTR\",\"name\":\"Matriz\"}"))
                 .andExpect(status().isNotFound())
                 .andExpect(jsonPath("$.error").value("ENTITY_NOT_FOUND"));
+    }
+
+    @Test
+    void shouldListAssignmentsByUserId() throws Exception {
+        UUID userId = UUID.randomUUID();
+        when(orgService.listUserBranchAssignments(eq(userId), eq(null), eq(0), eq(10)))
+                .thenReturn(new PageResponse<>(List.of(new UserBranchAssignmentDTO(UUID.randomUUID().toString(), userId.toString(), UUID.randomUUID().toString(), true, null)), 1, 1, 0, 10));
+
+        mockMvc.perform(get("/v1/org/user-branch-assignments").param("userId", userId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userId").value(userId.toString()));
+    }
+
+    @Test
+    void shouldCreateAssignment() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        when(orgService.createUserBranchAssignment(userId, branchId))
+                .thenReturn(new UserBranchAssignmentDTO(UUID.randomUUID().toString(), userId.toString(), branchId.toString(), true, null));
+
+        mockMvc.perform(post("/v1/org/user-branch-assignments")
+                        .contentType("application/json")
+                        .content("{\"userId\":\"" + userId + "\",\"branchId\":\"" + branchId + "\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.userId").value(userId.toString()));
+    }
+
+    @Test
+    void shouldReturn400WhenListingAssignmentsWithoutFilters() throws Exception {
+        mockMvc.perform(get("/v1/org/user-branch-assignments"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
     }
 }

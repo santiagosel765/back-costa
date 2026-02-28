@@ -16,6 +16,7 @@ public interface PaymentMethodMapper extends IdMappingSupport {
     PaymentMethod toEntity(PaymentMethodDTO dto);
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
+    @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     PaymentMethodDTO toDto(PaymentMethod entity);
 
     List<PaymentMethodDTO> toDtoList(List<PaymentMethod> entities);
