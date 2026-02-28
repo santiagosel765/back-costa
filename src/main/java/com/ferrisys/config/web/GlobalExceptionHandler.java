@@ -4,8 +4,11 @@ import com.ferrisys.common.api.ApiError;
 import com.ferrisys.common.api.ErrorCode;
 import com.ferrisys.common.exception.ModuleNotLicensedException;
 import com.ferrisys.common.exception.impl.BadRequestException;
+import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.common.exception.impl.NotFoundException;
 import jakarta.persistence.EntityNotFoundException;
+import jakarta.validation.ConstraintViolationException;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.AccessDeniedException;
@@ -28,6 +31,14 @@ public class GlobalExceptionHandler {
         String message = exception.getMessage() != null ? exception.getMessage() : "Entity not found";
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
                 .body(ApiError.of(ErrorCode.ENTITY_NOT_FOUND, message, HttpStatus.NOT_FOUND.value()));
+    }
+
+
+    @ExceptionHandler({ConflictException.class, DataIntegrityViolationException.class, ConstraintViolationException.class})
+    public ResponseEntity<ApiError> handleConflict(Exception exception) {
+        String message = exception.getMessage() != null ? exception.getMessage() : "Conflict";
+        return ResponseEntity.status(HttpStatus.CONFLICT)
+                .body(ApiError.of(ErrorCode.VALIDATION_ERROR, message, HttpStatus.CONFLICT.value()));
     }
 
     @ExceptionHandler({MethodArgumentNotValidException.class, IllegalArgumentException.class, BadRequestException.class})

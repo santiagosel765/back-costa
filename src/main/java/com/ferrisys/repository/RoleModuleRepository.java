@@ -7,6 +7,7 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 import java.util.Collection;
 import java.util.List;
 import java.util.UUID;
@@ -24,4 +25,10 @@ public interface RoleModuleRepository extends JpaRepository<AuthRoleModule, UUID
     List<AuthModule> findDistinctModulesByRoleIds(Collection<UUID> roleIds);
 
     List<AuthRoleModule> findByRoleIdAndStatus(UUID roleId, Integer status);
+
+    @Query("SELECT rm FROM AuthRoleModule rm WHERE rm.role.id = :roleId AND rm.role.tenantId = :tenantId")
+    List<AuthRoleModule> findByRoleIdAndTenantId(@Param("roleId") UUID roleId, @Param("tenantId") UUID tenantId);
+
+    @Query("SELECT rm FROM AuthRoleModule rm WHERE rm.role.id = :roleId AND rm.role.tenantId = :tenantId AND rm.status = :status")
+    List<AuthRoleModule> findByRoleIdAndTenantIdAndStatus(@Param("roleId") UUID roleId, @Param("tenantId") UUID tenantId, @Param("status") Integer status);
 }

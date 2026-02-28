@@ -1,5 +1,6 @@
 package com.ferrisys.common.entity.user;
 
+import com.ferrisys.common.audit.Auditable;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -25,7 +26,7 @@ import java.io.Serializable;
 @AllArgsConstructor
 @Builder
 @Table(name = "auth_role_module")
-public class AuthRoleModule implements Serializable {
+public class AuthRoleModule extends Auditable implements Serializable {
 
     @Id
     @GeneratedValue(generator = "UUID")
@@ -43,4 +44,7 @@ public class AuthRoleModule implements Serializable {
 
     @Column(nullable = false)
     private Integer status;
+
+    @Column(name = "tenant_id", columnDefinition = "uuid")
+    private UUID tenantId;
 }
