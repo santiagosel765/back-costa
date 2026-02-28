@@ -10,7 +10,10 @@ import com.ferrisys.common.entity.user.Role;
 import com.ferrisys.common.entity.user.User;
 import com.ferrisys.common.entity.user.UserStatus;
 import com.ferrisys.common.enums.DefaultUserStatus;
+import com.ferrisys.common.exception.impl.BadRequestException;
+import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.core.tenant.TenantContextHolder;
 import com.ferrisys.repository.AuthUserRoleRepository;
 import com.ferrisys.repository.ModuleLicenseRepository;
 import com.ferrisys.repository.ModuleRepository;
@@ -21,6 +24,7 @@ import com.ferrisys.service.UserService;
 import com.ferrisys.service.audit.AuditEventPublishRequest;
 import com.ferrisys.service.audit.AuditEventService;
 import jakarta.transaction.Transactional;
+import jakarta.validation.ConstraintViolationException;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
@@ -30,14 +34,19 @@ import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -65,6 +74,7 @@ public class AuthAdminController {
     private final ModuleLicenseRepository moduleLicenseRepository;
     private final UserService userService;
     private final AuditEventService auditEventService;
+    private final TenantContextHolder tenantContextHolder;
 
     @GetMapping("/users")
     public List<AdminUserResponse> listUsers() {
@@ -281,25 +291,58 @@ public class AuthAdminController {
     @GetMapping("/role-modules")
     @Transactional
     public RoleModulesDto getRoleModules(@RequestParam("roleId") UUID roleId) {
-        Role role = roleRepository.findById(roleId).orElseThrow(() -> new NotFoundException("Role not found"));
-        List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndStatus(roleId, 1);
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        Role role = roleRepository.findByIdAndTenantId(roleId, tenantId)
+                .orElseThrow(() -> new NotFoundException("Role not found for tenant"));
+        List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndTenantIdAndStatus(roleId, tenantId, 1);
         return buildRoleModulesDto(role, assignments);
     }
 
     @PostMapping("/role-modules")
     @Transactional
     public void saveRoleModules(@Valid @RequestBody RoleModuleRequest request) {
-        Role role = roleRepository.findById(request.roleId()).orElseThrow(() -> new NotFoundException("Role not found"));
-        persistRoleModules(role, request.moduleIds());
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        Role role = roleRepository.findByIdAndTenantId(request.roleId(), tenantId)
+                .orElseThrow(() -> new NotFoundException("Role not found for tenant"));
+        updateRoleModulesIdempotent(role, request.moduleIds(), tenantId);
     }
 
     @PutMapping("/role-modules/{roleId}")
     @Transactional
     public RoleModulesDto updateRoleModules(@PathVariable UUID roleId, @Valid @RequestBody RoleModulesDto request) {
-        Role role = roleRepository.findById(roleId).orElseThrow(() -> new NotFoundException("Role not found"));
-        persistRoleModules(role, request.getModuleIds());
-        List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndStatus(roleId, 1);
-        return buildRoleModulesDto(role, assignments);
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        String currentUser = getCurrentUsername();
+
+        if (request.getModuleIds() == null || request.getModuleIds().isEmpty()) {
+            throw new BadRequestException("moduleIds cannot be empty");
+        }
+
+        try {
+            Role role = roleRepository
+                    .findByIdAndTenantId(roleId, tenantId)
+                    .orElseThrow(() -> new NotFoundException("Role not found for tenant"));
+            updateRoleModulesIdempotent(role, request.getModuleIds(), tenantId);
+            List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndTenantIdAndStatus(roleId, tenantId, 1);
+            return buildRoleModulesDto(role, assignments);
+        } catch (DataIntegrityViolationException | ConstraintViolationException exception) {
+            log.error(
+                    "Data integrity error updating role modules. roleId={}, tenantId={}, currentUser={}, moduleIds={}",
+                    roleId,
+                    tenantId,
+                    currentUser,
+                    request.getModuleIds(),
+                    exception);
+            throw new ConflictException("Unable to update role modules due to data integrity constraints");
+        } catch (RuntimeException exception) {
+            log.error(
+                    "Unexpected error updating role modules. roleId={}, tenantId={}, currentUser={}, moduleIds={}",
+                    roleId,
+                    tenantId,
+                    currentUser,
+                    request.getModuleIds(),
+                    exception);
+            throw exception;
+        }
     }
 
     @GetMapping("/module-licenses")
@@ -352,6 +395,76 @@ public class AuthAdminController {
                     .build();
             roleModuleRepository.save(assignment);
         }
+    }
+
+    private void updateRoleModulesIdempotent(Role role, List<UUID> requestedModuleIds, UUID tenantId) {
+        Set<UUID> uniqueModuleIds = new HashSet<>(requestedModuleIds);
+        List<AuthModule> tenantModules = moduleRepository.findAllById(uniqueModuleIds).stream()
+                .filter(module -> tenantId.equals(module.getTenantId()))
+                .filter(module -> module.getStatus() != null && module.getStatus() == 1)
+                .toList();
+
+        Map<UUID, AuthModule> validModulesById = tenantModules.stream().collect(Collectors.toMap(AuthModule::getId, module -> module));
+        Set<UUID> validModuleIds = validModulesById.keySet();
+        if (validModuleIds.size() != uniqueModuleIds.size()) {
+            throw new ConflictException("One or more modules do not exist, are inactive, or do not belong to the tenant");
+        }
+
+        List<AuthRoleModule> existingAssignments = roleModuleRepository.findByRoleIdAndTenantId(role.getId(), tenantId);
+        Map<UUID, AuthRoleModule> assignmentsByModule = new HashMap<>();
+        Set<UUID> currentActiveModuleIds = new HashSet<>();
+
+        for (AuthRoleModule assignment : existingAssignments) {
+            UUID moduleId = assignment.getModule().getId();
+            assignmentsByModule.put(moduleId, assignment);
+            if (assignment.getStatus() != null && assignment.getStatus() == 1) {
+                currentActiveModuleIds.add(moduleId);
+            }
+        }
+
+        Set<UUID> toAdd = new HashSet<>(validModuleIds);
+        toAdd.removeAll(currentActiveModuleIds);
+
+        Set<UUID> toRemove = new HashSet<>(currentActiveModuleIds);
+        toRemove.removeAll(validModuleIds);
+
+        for (UUID moduleId : toAdd) {
+            AuthRoleModule existingAssignment = assignmentsByModule.get(moduleId);
+            if (existingAssignment != null) {
+                existingAssignment.setStatus(1);
+                existingAssignment.setTenantId(tenantId);
+                roleModuleRepository.save(existingAssignment);
+                continue;
+            }
+
+            AuthModule module = validModulesById.get(moduleId);
+            if (module == null) {
+                throw new ConflictException("Module not found for tenant");
+            }
+            AuthRoleModule assignment = AuthRoleModule.builder()
+                    .role(role)
+                    .module(module)
+                    .status(1)
+                    .tenantId(tenantId)
+                    .build();
+            roleModuleRepository.save(assignment);
+        }
+
+        for (UUID moduleId : toRemove) {
+            AuthRoleModule existingAssignment = assignmentsByModule.get(moduleId);
+            if (existingAssignment != null) {
+                existingAssignment.setStatus(0);
+                existingAssignment.setTenantId(tenantId);
+                roleModuleRepository.save(existingAssignment);
+            }
+        }
+    }
+
+    private String getCurrentUsername() {
+        if (SecurityContextHolder.getContext().getAuthentication() == null) {
+            return "anonymous";
+        }
+        return SecurityContextHolder.getContext().getAuthentication().getName();
     }
 
     private RoleModulesDto buildRoleModulesDto(Role role, List<AuthRoleModule> assignments) {
