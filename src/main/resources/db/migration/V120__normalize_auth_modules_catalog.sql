@@ -72,33 +72,46 @@ UPDATE auth_module
 SET description = 'Control de existencias, movimientos, lotes y series.'
 WHERE normalize_module_key(name) = 'INVENTORY';
 
--- Construye mapa de duplicados por tenant + key normalizada conservando siempre MIN(id).
+-- Construye mapa de duplicados por tenant + key normalizada con selección canónica determinística (rn = 1).
 CREATE TEMP TABLE duplicates_map (
-    dup_id UUID PRIMARY KEY,
+    duplicate_id UUID PRIMARY KEY,
     canonical_id UUID NOT NULL,
     tenant_id UUID,
     key_norm TEXT NOT NULL
 ) ON COMMIT DROP;
 
-INSERT INTO duplicates_map (dup_id, canonical_id, tenant_id, key_norm)
+INSERT INTO duplicates_map (duplicate_id, canonical_id, tenant_id, key_norm)
 WITH ranked AS (
     SELECT am.id,
            am.tenant_id,
            normalize_module_key(am.name::text) AS key_norm,
            ROW_NUMBER() OVER (
                PARTITION BY am.tenant_id, normalize_module_key(am.name::text)
-               ORDER BY am.id
-           ) AS rn,
-           MIN(am.id) OVER (
-               PARTITION BY am.tenant_id, normalize_module_key(am.name::text)
-           ) AS canonical_id
+               ORDER BY
+                   CASE
+                       WHEN to_jsonb(am) ? 'created_at'
+                           THEN (to_jsonb(am)->>'created_at')::timestamp
+                       ELSE NULL
+                   END NULLS LAST,
+                   am.id::text
+           ) AS rn
     FROM auth_module am
+),
+canonical AS (
+    SELECT tenant_id,
+           key_norm,
+           id AS canonical_id
+    FROM ranked
+    WHERE rn = 1
 )
-SELECT r.id,
-       r.canonical_id,
+SELECT r.id AS duplicate_id,
+       c.canonical_id,
        r.tenant_id,
        r.key_norm
 FROM ranked r
+JOIN canonical c
+  ON c.tenant_id IS NOT DISTINCT FROM r.tenant_id
+ AND c.key_norm = r.key_norm
 WHERE r.rn > 1;
 
 -- Repoint dinámico de cualquier FK simple que apunte a auth_module(id).
@@ -135,7 +148,7 @@ BEGIN
             'UPDATE %I.%I t
              SET %I = d.canonical_id
              FROM duplicates_map d
-             WHERE t.%I = d.dup_id',
+             WHERE t.%I = d.duplicate_id',
             fk_rec.schema_name,
             fk_rec.table_name,
             fk_rec.column_name,
@@ -148,7 +161,7 @@ $$;
 -- Borra definitivamente los módulos duplicados ya repointados.
 DELETE FROM auth_module am
 USING duplicates_map d
-WHERE am.id = d.dup_id;
+WHERE am.id = d.duplicate_id;
 
 -- Mantiene la semilla CONFIG/ORG idempotente con las claves canónicas.
 WITH selected_tenant AS (
