@@ -103,6 +103,12 @@ public class OrgController {
         return currentUserBranches();
     }
 
+    @GetMapping("/me/branch")
+    public ApiResponse<BranchDTO> currentUserBranch() {
+        BranchDTO branch = orgService.currentUserBranch();
+        return ApiResponse.single(branch);
+    }
+
     @GetMapping("/me/branches/{branchId}/validate")
     public ApiResponse<Void> validateCurrentUserBranch(@PathVariable UUID branchId) {
         orgService.validateCurrentUserBranch(branchId);

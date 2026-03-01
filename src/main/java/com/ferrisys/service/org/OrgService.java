@@ -24,5 +24,7 @@ public interface OrgService {
 
     List<BranchDTO> currentUserBranches();
 
+    BranchDTO currentUserBranch();
+
     void validateCurrentUserBranch(UUID branchId);
 }
