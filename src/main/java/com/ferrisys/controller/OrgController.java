@@ -19,7 +19,9 @@ import org.springframework.web.bind.annotation.PutMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.http.HttpStatus;
 
 @RestController
 @RequestMapping("/v1/org")
@@ -30,7 +32,7 @@ public class OrgController {
     private final OrgService orgService;
 
     @GetMapping("/branches")
-    public ApiResponse<List<BranchDTO>> branches(@RequestParam(defaultValue = "0") int page,
+    public ApiResponse<List<BranchDTO>> branches(@RequestParam(defaultValue = "1") int page,
                                                  @RequestParam(defaultValue = "10") int size,
                                                  @RequestParam(defaultValue = "") String search) {
         PageResponse<BranchDTO> response = orgService.listBranches(page, size, search);
@@ -38,6 +40,7 @@ public class OrgController {
     }
 
     @PostMapping("/branches")
+    @ResponseStatus(HttpStatus.CREATED)
     public ApiResponse<BranchDTO> createBranch(@RequestBody BranchDTO dto) { return ApiResponse.single(orgService.saveBranch(dto)); }
     @PutMapping("/branches/{id}")
     public ApiResponse<BranchDTO> updateBranch(@PathVariable UUID id, @RequestBody BranchDTO dto) { return ApiResponse.single(orgService.updateBranch(id, dto)); }
@@ -46,7 +49,7 @@ public class OrgController {
 
     @GetMapping("/branches/{branchId}/warehouses")
     public ApiResponse<List<WarehouseDTO>> warehouses(@PathVariable UUID branchId,
-                                                      @RequestParam(defaultValue = "0") int page,
+                                                      @RequestParam(defaultValue = "1") int page,
                                                       @RequestParam(defaultValue = "10") int size,
                                                       @RequestParam(defaultValue = "") String search) {
         PageResponse<WarehouseDTO> response = orgService.listWarehouses(branchId, page, size, search);
@@ -72,7 +75,7 @@ public class OrgController {
     @GetMapping({"/user-branch-assignments", "/assignments"})
     public ApiResponse<List<UserBranchAssignmentDTO>> listUserBranchAssignments(@RequestParam(required = false) UUID userId,
                                                                                  @RequestParam(required = false) UUID branchId,
-                                                                                 @RequestParam(defaultValue = "0") int page,
+                                                                                 @RequestParam(defaultValue = "1") int page,
                                                                                  @RequestParam(defaultValue = "10") int size) {
         if (userId == null && branchId == null) {
             throw new BadRequestException("Debe enviar userId o branchId");
