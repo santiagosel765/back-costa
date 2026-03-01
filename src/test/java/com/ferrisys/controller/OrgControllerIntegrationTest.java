@@ -100,8 +100,9 @@ class OrgControllerIntegrationTest {
 
         mockMvc.perform(get("/v1/org/branches"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page").value(1))
-                .andExpect(jsonPath("$.data[0].name").value("Matriz"));
+                .andExpect(jsonPath("$.message").value("OK"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.data[0].name").value("Matriz"));
     }
 
 
@@ -127,7 +128,7 @@ class OrgControllerIntegrationTest {
 
         mockMvc.perform(get("/v1/org/branches").param("page", "0"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page").value(1));
+                .andExpect(jsonPath("$.data.page").value(1));
     }
 
     @Test
@@ -149,8 +150,9 @@ class OrgControllerIntegrationTest {
 
         mockMvc.perform(get("/v1/org/user-branch-assignments").param("userId", userId.toString()))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.page").value(1))
-                .andExpect(jsonPath("$.data[0].userId").value(userId.toString()));
+                .andExpect(jsonPath("$.message").value("OK"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.data[0].userId").value(userId.toString()));
     }
 
     @Test
