@@ -10,7 +10,11 @@ import static org.mockito.Mockito.when;
 
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.config.CurrencyDTO;
+import com.ferrisys.common.dto.config.PaymentMethodDTO;
+import com.ferrisys.common.dto.config.TaxDTO;
 import com.ferrisys.common.entity.config.Currency;
+import com.ferrisys.common.entity.config.PaymentMethod;
+import com.ferrisys.common.entity.config.Tax;
 import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.core.tenant.TenantContextHolder;
@@ -158,4 +162,77 @@ class ConfigCatalogServiceImplTest {
         assertThat(result.isFunctional()).isTrue();
         verify(currencyRepository).unsetFunctionalCurrencies(tenantId, targetId);
     }
+    @Test
+    void listTaxesShouldKeepOneBasedPageWhenRequested() {
+        UUID tenantId = UUID.randomUUID();
+        when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
+        when(taxRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(eq(tenantId), eq(""), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+        when(taxMapper.toDtoList(any())).thenReturn(List.of());
+
+        PageResponse<TaxDTO> result = service.listTaxes(1, 10, "");
+
+        assertThat(result.page()).isEqualTo(1);
+    }
+
+    @Test
+    void listTaxesShouldKeepZeroBasedPageWhenRequested() {
+        UUID tenantId = UUID.randomUUID();
+        when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
+        when(taxRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(eq(tenantId), eq(""), any(PageRequest.class)))
+                .thenReturn(new PageImpl<>(List.of(), PageRequest.of(0, 10), 0));
+        when(taxMapper.toDtoList(any())).thenReturn(List.of());
+
+        PageResponse<TaxDTO> result = service.listTaxes(0, 10, "");
+
+        assertThat(result.page()).isEqualTo(0);
+    }
+
+    @Test
+    void saveTaxShouldGenerateCodeFromNameWhenMissing() {
+        UUID tenantId = UUID.randomUUID();
+        Tax input = new Tax();
+        input.setName("Crédito Fiscal");
+
+        Tax saved = new Tax();
+        saved.setId(UUID.randomUUID());
+        saved.setName("Crédito Fiscal");
+        saved.setCode("CREDITO_FISCAL");
+
+        when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
+        when(taxMapper.toEntity(any())).thenReturn(input);
+        when(taxRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, "CREDITO_FISCAL")).thenReturn(false);
+        when(taxRepository.save(any())).thenReturn(saved);
+        when(taxMapper.toDto(saved)).thenReturn(new TaxDTO(saved.getId().toString(), saved.getCode(), saved.getName(), null, null, true, null));
+
+        TaxDTO result = service.saveTax(new TaxDTO(null, null, "Crédito Fiscal", null, null, true, null));
+
+        assertThat(result.code()).isEqualTo("CREDITO_FISCAL");
+        verify(taxRepository).save(any());
+    }
+
+    @Test
+    void savePaymentMethodShouldGenerateUniqueCodeSuffixWhenDuplicateExists() {
+        UUID tenantId = UUID.randomUUID();
+        PaymentMethod input = new PaymentMethod();
+        input.setName("Tarjeta débito");
+
+        PaymentMethod saved = new PaymentMethod();
+        saved.setId(UUID.randomUUID());
+        saved.setName("Tarjeta débito");
+        saved.setCode("TARJETA_DEBITO_2");
+
+        when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
+        when(paymentMethodMapper.toEntity(any())).thenReturn(input);
+        when(paymentMethodRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, "TARJETA_DEBITO")).thenReturn(true);
+        when(paymentMethodRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, "TARJETA_DEBITO_2")).thenReturn(false);
+        when(paymentMethodRepository.save(any())).thenReturn(saved);
+        when(paymentMethodMapper.toDto(saved)).thenReturn(new PaymentMethodDTO(saved.getId().toString(), saved.getCode(), saved.getName(), null, true, null));
+
+        PaymentMethodDTO result = service.savePaymentMethod(new PaymentMethodDTO(null, null, "Tarjeta débito", null, true, null));
+
+        assertThat(result.code()).isEqualTo("TARJETA_DEBITO_2");
+        verify(paymentMethodRepository).save(any());
+    }
+
 }

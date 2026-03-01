@@ -10,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface PaymentMethodRepository extends JpaRepository<PaymentMethod, UUID> {
     Optional<PaymentMethod> findByIdAndTenantIdAndActiveTrueAndDeletedAtIsNull(UUID id, UUID tenantId);
     Page<PaymentMethod> findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(UUID tenantId, String search, Pageable pageable);
+    boolean existsByTenantIdAndCodeAndDeletedAtIsNull(UUID tenantId, String code);
+    boolean existsByTenantIdAndCodeAndDeletedAtIsNullAndIdNot(UUID tenantId, String code, UUID id);
 }
