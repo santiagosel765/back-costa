@@ -8,6 +8,7 @@ import com.ferrisys.common.dto.org.DocumentNumberingDTO;
 import com.ferrisys.common.dto.org.UpdateDocumentNumberingRequest;
 import com.ferrisys.common.dto.org.UpdateWarehouseRequest;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentEnrichedDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
 import com.ferrisys.common.entity.config.DocumentType;
 import com.ferrisys.common.entity.org.Branch;
@@ -32,6 +33,8 @@ import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.WarehouseRepository;
 import com.ferrisys.service.org.OrgService;
 import java.time.OffsetDateTime;
+import java.util.Collection;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
@@ -331,8 +334,42 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public PageResponse<UserBranchAssignmentDTO> listUserBranchAssignments(UUID userId, UUID branchId, int page, int size) {
         UUID tenantId = tenantContextHolder.requireTenantId();
+        Page<UserBranchAssignment> assignments = findAssignments(tenantId, userId, branchId, page, size);
+        return PageResponse.of(userBranchAssignmentMapper.toDtoList(assignments.getContent()),
+                assignments.getTotalPages(), assignments.getTotalElements(), normalizeResponsePage(page), assignments.getSize());
+    }
+
+    @Override
+    public PageResponse<UserBranchAssignmentEnrichedDTO> listUserBranchAssignmentsEnriched(UUID userId, UUID branchId, int page, int size) {
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        Page<UserBranchAssignment> assignments = findAssignments(tenantId, userId, branchId, page, size);
+
+        Set<UUID> userIds = assignments.getContent().stream()
+                .map(UserBranchAssignment::getUserId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+        Set<UUID> branchIds = assignments.getContent().stream()
+                .map(UserBranchAssignment::getBranch)
+                .filter(java.util.Objects::nonNull)
+                .map(Branch::getId)
+                .filter(java.util.Objects::nonNull)
+                .collect(Collectors.toSet());
+
+        Map<UUID, User> usersById = findUsersByIds(tenantId, userIds).stream()
+                .collect(Collectors.toMap(User::getId, Function.identity()));
+        Map<UUID, Branch> branchesById = findBranchesByIds(tenantId, branchIds).stream()
+                .collect(Collectors.toMap(Branch::getId, Function.identity()));
+
+        List<UserBranchAssignmentEnrichedDTO> content = assignments.getContent().stream()
+                .map(assignment -> toEnrichedDto(assignment, usersById, branchesById))
+                .toList();
+
+        return PageResponse.of(content,
+                assignments.getTotalPages(), assignments.getTotalElements(), normalizeResponsePage(page), assignments.getSize());
+    }
+
+    private Page<UserBranchAssignment> findAssignments(UUID tenantId, UUID userId, UUID branchId, int page, int size) {
         Page<UserBranchAssignment> assignments;
-        int responsePage = normalizeResponsePage(page);
         PageRequest pageRequest = PageRequest.of(normalizePage(page), size);
 
         if (userId != null && branchId != null) {
@@ -345,9 +382,42 @@ public class OrgServiceImpl implements OrgService {
         } else {
             assignments = userBranchAssignmentRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageRequest);
         }
+        return assignments;
+    }
 
-        return PageResponse.of(userBranchAssignmentMapper.toDtoList(assignments.getContent()),
-                assignments.getTotalPages(), assignments.getTotalElements(), responsePage, assignments.getSize());
+    private List<User> findUsersByIds(UUID tenantId, Collection<UUID> userIds) {
+        if (userIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return userRepository.findByTenant_IdAndIdIn(tenantId, userIds);
+    }
+
+    private List<Branch> findBranchesByIds(UUID tenantId, Collection<UUID> branchIds) {
+        if (branchIds.isEmpty()) {
+            return Collections.emptyList();
+        }
+        return branchRepository.findByTenantIdAndIdInAndDeletedAtIsNull(tenantId, branchIds);
+    }
+
+    private UserBranchAssignmentEnrichedDTO toEnrichedDto(UserBranchAssignment assignment,
+                                                           Map<UUID, User> usersById,
+                                                           Map<UUID, Branch> branchesById) {
+        UUID userId = assignment.getUserId();
+        UUID branchId = assignment.getBranch() != null ? assignment.getBranch().getId() : null;
+        User user = userId != null ? usersById.get(userId) : null;
+        Branch branch = branchId != null ? branchesById.get(branchId) : null;
+
+        return new UserBranchAssignmentEnrichedDTO(
+                userBranchAssignmentMapper.fromUuid(assignment.getId()),
+                userBranchAssignmentMapper.fromUuid(userId),
+                user != null ? user.getFullName() : null,
+                user != null ? user.getEmail() : null,
+                userBranchAssignmentMapper.fromUuid(branchId),
+                branch != null ? branch.getCode() : null,
+                branch != null ? branch.getName() : null,
+                assignment.getActive(),
+                assignment.getUpdatedAt() != null ? assignment.getUpdatedAt().toString() : null
+        );
     }
 
     @Override

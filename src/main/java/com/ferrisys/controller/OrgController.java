@@ -9,6 +9,7 @@ import com.ferrisys.common.dto.org.DocumentNumberingDTO;
 import com.ferrisys.common.dto.org.UpdateDocumentNumberingRequest;
 import com.ferrisys.common.dto.org.UpdateWarehouseRequest;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentEnrichedDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
 import com.ferrisys.config.license.RequireModule;
 import com.ferrisys.service.org.OrgService;
@@ -132,6 +133,15 @@ public class OrgController {
                                                                                  @RequestParam(defaultValue = "1") int page,
                                                                                  @RequestParam(defaultValue = "10") int size) {
         PageResponse<UserBranchAssignmentDTO> response = orgService.listUserBranchAssignments(userId, branchId, page, size);
+        return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
+    }
+
+    @GetMapping("/user-branch-assignments/enriched")
+    public ApiResponse<List<UserBranchAssignmentEnrichedDTO>> listUserBranchAssignmentsEnriched(@RequestParam(required = false) UUID userId,
+                                                                                                  @RequestParam(required = false) UUID branchId,
+                                                                                                  @RequestParam(defaultValue = "1") int page,
+                                                                                                  @RequestParam(defaultValue = "10") int size) {
+        PageResponse<UserBranchAssignmentEnrichedDTO> response = orgService.listUserBranchAssignmentsEnriched(userId, branchId, page, size);
         return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
     }
 

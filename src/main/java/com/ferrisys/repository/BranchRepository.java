@@ -13,6 +13,7 @@ public interface BranchRepository extends JpaRepository<Branch, UUID> {
     Optional<Branch> findByIdAndTenantIdAndActiveTrueAndDeletedAtIsNull(UUID id, UUID tenantId);
     Page<Branch> findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(UUID tenantId, String search, Pageable pageable);
     List<Branch> findByTenantIdAndIdInAndActiveTrueAndDeletedAtIsNull(UUID tenantId, Collection<UUID> ids);
+    List<Branch> findByTenantIdAndIdInAndDeletedAtIsNull(UUID tenantId, Collection<UUID> ids);
     boolean existsByTenantIdAndCodeIgnoreCaseAndActiveTrueAndDeletedAtIsNull(UUID tenantId, String code);
     boolean existsByTenantIdAndCodeIgnoreCaseAndIdNotAndActiveTrueAndDeletedAtIsNull(UUID tenantId, String code, UUID id);
 }
