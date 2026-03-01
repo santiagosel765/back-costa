@@ -27,7 +27,9 @@ import com.ferrisys.repository.ParameterRepository;
 import com.ferrisys.repository.PaymentMethodRepository;
 import com.ferrisys.repository.TaxRepository;
 import com.ferrisys.service.config.ConfigCatalogService;
+import java.text.Normalizer;
 import java.time.OffsetDateTime;
+import java.util.Locale;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -57,7 +59,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = currencyRepository.searchByTenant(
                 tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
-        return PageResponse.of(currencyMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber() + 1, p.getSize());
+        return buildPageResponse(currencyMapper.toDtoList(p.getContent()), p, page);
     }
 
     @Override
@@ -159,7 +161,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = taxRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
-        return PageResponse.of(taxMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return buildPageResponse(taxMapper.toDtoList(p.getContent()), p, page);
     }
 
     @Override
@@ -172,6 +174,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
+        validateAndNormalizeTax(tenantId, entity, null);
         return taxMapper.toDto(taxRepository.save(entity));
     }
 
@@ -185,6 +188,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setName(dto.name());
         entity.setDescription(dto.description());
         entity.setRate(dto.rate());
+        validateAndNormalizeTax(tenantId, entity, id);
         if (dto.active() != null) {
             entity.setActive(dto.active());
         }
@@ -206,7 +210,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = parameterRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
-        return PageResponse.of(parameterMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return buildPageResponse(parameterMapper.toDtoList(p.getContent()), p, page);
     }
 
     @Override
@@ -253,7 +257,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = paymentMethodRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
-        return PageResponse.of(paymentMethodMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return buildPageResponse(paymentMethodMapper.toDtoList(p.getContent()), p, page);
     }
 
     @Override
@@ -266,6 +270,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
+        validateAndNormalizePaymentMethod(tenantId, entity, null);
         return paymentMethodMapper.toDto(paymentMethodRepository.save(entity));
     }
 
@@ -278,6 +283,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         entity.setCode(dto.code());
         entity.setName(dto.name());
         entity.setDescription(dto.description());
+        validateAndNormalizePaymentMethod(tenantId, entity, id);
         if (dto.active() != null) {
             entity.setActive(dto.active());
         }
@@ -299,7 +305,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = documentTypeRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
-        return PageResponse.of(documentTypeMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return buildPageResponse(documentTypeMapper.toDtoList(p.getContent()), p, page);
     }
 
     @Override
@@ -383,6 +389,63 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
 
         currencyRepository.unsetFunctionalCurrencies(tenantId, replacement.getId());
         currencyRepository.setFunctionalCurrency(tenantId, replacement.getId());
+    }
+
+    private <T> PageResponse<T> buildPageResponse(java.util.List<T> content, org.springframework.data.domain.Page<?> pageResult, int requestedPage) {
+        return PageResponse.of(content, pageResult.getTotalPages(), pageResult.getTotalElements(), toResponsePage(pageResult.getNumber(), requestedPage), pageResult.getSize());
+    }
+
+    private int toResponsePage(int resolvedPage, int requestedPage) {
+        return requestedPage <= 0 ? resolvedPage : resolvedPage + 1;
+    }
+
+    private void validateAndNormalizeTax(UUID tenantId, Tax entity, UUID currentId) {
+        if (entity.getName() == null || entity.getName().trim().isEmpty()) {
+            throw new BadRequestException("name es requerido");
+        }
+        entity.setName(entity.getName().trim());
+        entity.setCode(resolveUniqueCode(entity.getCode(), entity.getName(), code -> currentId == null
+                ? taxRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, code)
+                : taxRepository.existsByTenantIdAndCodeAndDeletedAtIsNullAndIdNot(tenantId, code, currentId)));
+    }
+
+    private void validateAndNormalizePaymentMethod(UUID tenantId, PaymentMethod entity, UUID currentId) {
+        if (entity.getName() == null || entity.getName().trim().isEmpty()) {
+            throw new BadRequestException("name es requerido");
+        }
+        entity.setName(entity.getName().trim());
+        entity.setCode(resolveUniqueCode(entity.getCode(), entity.getName(), code -> currentId == null
+                ? paymentMethodRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, code)
+                : paymentMethodRepository.existsByTenantIdAndCodeAndDeletedAtIsNullAndIdNot(tenantId, code, currentId)));
+    }
+
+    private String resolveUniqueCode(String requestedCode, String fallbackName, java.util.function.Predicate<String> existsCode) {
+        String baseCode = normalizeCode(requestedCode != null && !requestedCode.trim().isEmpty() ? requestedCode : fallbackName);
+        if (baseCode.isEmpty()) {
+            throw new BadRequestException("No se pudo generar code a partir de name");
+        }
+
+        String candidate = baseCode;
+        int suffix = 2;
+        while (existsCode.test(candidate)) {
+            candidate = baseCode + "_" + suffix;
+            suffix++;
+        }
+        return candidate;
+    }
+
+    private String normalizeCode(String input) {
+        if (input == null) {
+            return "";
+        }
+        String normalized = Normalizer.normalize(input.trim(), Normalizer.Form.NFD)
+                .replaceAll("\\p{M}", "")
+                .toUpperCase(Locale.ROOT)
+                .replaceAll("\\s+", "_")
+                .replaceAll("[^A-Z0-9_]", "_")
+                .replaceAll("_+", "_")
+                .replaceAll("^_+|_+$", "");
+        return normalized;
     }
 
     private void softDelete(Currency entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
