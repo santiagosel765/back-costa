@@ -97,7 +97,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldListBranches() throws Exception {
         when(orgService.listBranches(1, 10, ""))
-                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 1, 10));
+                .thenReturn(new PageResponse<>(List.of(branchDto("MTR", "Matriz", true)), 1, 1, 1, 10));
 
         mockMvc.perform(get("/v1/org/branches"))
                 .andExpect(status().isOk())
@@ -111,7 +111,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldCreateBranchWithCreatedStatus() throws Exception {
         when(orgService.saveBranch(any()))
-                .thenReturn(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null));
+                .thenReturn(branchDto("MTR", "Matriz", true));
 
         mockMvc.perform(post("/v1/org/branches")
                         .contentType("application/json")
@@ -125,7 +125,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldAllowZeroPageAndReturnNormalizedPage() throws Exception {
         when(orgService.listBranches(0, 10, ""))
-                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 1, 10));
+                .thenReturn(new PageResponse<>(List.of(branchDto("MTR", "Matriz", true)), 1, 1, 1, 10));
 
         mockMvc.perform(get("/v1/org/branches").param("page", "0"))
                 .andExpect(status().isOk())
@@ -185,7 +185,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldListCurrentUserBranchesInMeEndpoint() throws Exception {
         when(orgService.currentUserBranches())
-                .thenReturn(List.of(new BranchDTO(UUID.randomUUID().toString(), "SCL", "Sucursal Centro", null, null, true, null)));
+                .thenReturn(List.of(branchDto("SCL", "Sucursal Centro", true)));
 
         mockMvc.perform(get("/v1/org/me/branches"))
                 .andExpect(status().isOk())
@@ -196,7 +196,7 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldListCurrentUserPrimaryBranchInMeBranchEndpoint() throws Exception {
         when(orgService.currentUserBranch())
-                .thenReturn(new BranchDTO(UUID.randomUUID().toString(), "SCL", "Sucursal Centro", null, null, true, null));
+                .thenReturn(branchDto("SCL", "Sucursal Centro", true));
 
         mockMvc.perform(get("/v1/org/me/branch"))
                 .andExpect(status().isOk())
@@ -231,5 +231,25 @@ class OrgControllerIntegrationTest {
                 .andExpect(status().isForbidden())
                 .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
     }
-}
 
+    private BranchDTO branchDto(String code, String name, Boolean active) {
+        return new BranchDTO(
+                UUID.randomUUID().toString(),
+                code,
+                name,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                active,
+                null
+        );
+    }
+}
