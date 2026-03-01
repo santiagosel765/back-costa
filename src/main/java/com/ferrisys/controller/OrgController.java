@@ -6,7 +6,6 @@ import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
-import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.config.license.RequireModule;
 import com.ferrisys.service.org.OrgService;
 import java.util.List;
@@ -78,9 +77,6 @@ public class OrgController {
                                                                                       @RequestParam(required = false) UUID branchId,
                                                                                       @RequestParam(defaultValue = "1") int page,
                                                                                       @RequestParam(defaultValue = "10") int size) {
-        if (userId == null && branchId == null) {
-            throw new BadRequestException("Debe enviar userId o branchId");
-        }
         PageResponse<UserBranchAssignmentDTO> response = orgService.listUserBranchAssignments(userId, branchId, page, size);
         return ApiResponse.single(PagedData.from(response));
     }

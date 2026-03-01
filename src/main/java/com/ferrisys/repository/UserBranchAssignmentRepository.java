@@ -17,6 +17,8 @@ public interface UserBranchAssignmentRepository extends JpaRepository<UserBranch
 
     Page<UserBranchAssignment> findByTenantIdAndUserIdAndBranch_IdAndDeletedAtIsNull(UUID tenantId, UUID userId, UUID branchId, Pageable pageable);
 
+    Page<UserBranchAssignment> findByTenantIdAndDeletedAtIsNull(UUID tenantId, Pageable pageable);
+
     Optional<UserBranchAssignment> findByTenantIdAndUserIdAndBranch_Id(UUID tenantId, UUID userId, UUID branchId);
 
     Optional<UserBranchAssignment> findByTenantIdAndUserIdAndBranch_IdAndDeletedAtIsNull(UUID tenantId, UUID userId, UUID branchId);
