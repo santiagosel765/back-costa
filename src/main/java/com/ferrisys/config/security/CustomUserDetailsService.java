@@ -68,9 +68,9 @@ public class CustomUserDetailsService implements UserDetailsService {
     }
 
     private void addModuleAuthority(Set<GrantedAuthority> authorities, AuthModule module, UUID tenantId) {
-        if (module != null && module.getName() != null && !module.getName().isBlank()
-                && featureFlagService.isModuleEnabled(tenantId, module.getName())) {
-            authorities.add(new SimpleGrantedAuthority("MODULE_" + normalize(module.getName())));
+        if (module != null && module.getModuleKey() != null && !module.getModuleKey().isBlank()
+                && featureFlagService.isModuleEnabled(tenantId, module.getModuleKey())) {
+            authorities.add(new SimpleGrantedAuthority("MODULE_" + normalize(module.getModuleKey())));
         }
     }
 

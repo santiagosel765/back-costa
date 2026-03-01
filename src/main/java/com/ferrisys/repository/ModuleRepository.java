@@ -9,11 +9,11 @@ import org.springframework.data.jpa.repository.JpaRepository;
 
 public interface ModuleRepository extends JpaRepository<AuthModule, UUID> {
 
-    Optional<AuthModule> findByNameIgnoreCase(String name);
+    Optional<AuthModule> findByModuleKeyIgnoreCase(String moduleKey);
 
-    Optional<AuthModule> findByNameIgnoreCaseAndTenantId(String name, UUID tenantId);
+    Optional<AuthModule> findByModuleKeyIgnoreCaseAndTenantId(String moduleKey, UUID tenantId);
 
-    Page<AuthModule> findByTenantId(UUID tenantId, Pageable pageable);
+    Page<AuthModule> findByTenantIdAndStatusOrderByNameAsc(UUID tenantId, Integer status, Pageable pageable);
 
     Optional<AuthModule> findByIdAndTenantId(UUID id, UUID tenantId);
 }

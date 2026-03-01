@@ -20,7 +20,6 @@ import com.ferrisys.common.enums.DefaultRole;
 import com.ferrisys.common.enums.DefaultUserStatus;
 import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.common.exception.impl.NotFoundException;
-import com.ferrisys.common.util.ModuleKeyNormalizer;
 import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.core.tenant.TenantContext;
 import com.ferrisys.mapper.ModuleMapper;
@@ -260,7 +259,9 @@ public class UserServiceImpl implements UserService {
         Page<AuthModule> result = roleModuleRepository.findModulesByRoleId(
                 role.getRole().getId(), PageRequest.of(page, size));
         List<AuthModule> filteredModules = result.getContent().stream()
-                .filter(module -> featureFlagService.isModuleEnabled(user.getTenant().getId(), module.getName()))
+                .filter(module -> module.getStatus() != null && module.getStatus() == 1)
+                .filter(module -> featureFlagService.isModuleEnabled(user.getTenant().getId(), module.getModuleKey()))
+                .sorted(java.util.Comparator.comparing(AuthModule::getName, java.util.Comparator.nullsLast(String::compareToIgnoreCase)))
                 .toList();
         Page<ModuleDTO> pageDto = new PageImpl<>(
                 moduleMapper.toDtoList(filteredModules),
@@ -386,7 +387,7 @@ public class UserServiceImpl implements UserService {
 
         return modules.stream()
                 .map(module -> AuthContextModuleDto.builder()
-                        .key(ModuleKeyNormalizer.normalize(module.getName()))
+                        .key(module.getModuleKey())
                         .label(module.getName())
                         .enabled(Boolean.TRUE)
                         .expiresAt(resolveLicenseExpiration(licensesByModuleId.get(module.getId())))
@@ -412,7 +413,8 @@ public class UserServiceImpl implements UserService {
 
         UUID tenantId = user.getTenant() != null ? user.getTenant().getId() : null;
         return roleModuleRepository.findDistinctModulesByRoleIds(roleIds).stream()
-                .filter(module -> tenantId == null || featureFlagService.isModuleEnabled(tenantId, module.getName()))
+                .filter(module -> module.getStatus() != null && module.getStatus() == 1)
+                .filter(module -> tenantId == null || featureFlagService.isModuleEnabled(tenantId, module.getModuleKey()))
                 .toList();
     }
 
@@ -420,8 +422,8 @@ public class UserServiceImpl implements UserService {
         List<String> roles = authUserRoleRepository.findActiveRoleNamesByUserId(user.getId());
         List<UUID> roleIds = authUserRoleRepository.findActiveRoleIdsByUserId(user.getId());
         List<String> moduleKeys = getEnabledModules(user, roleIds).stream()
-                .map(AuthModule::getName)
-                .map(ModuleKeyNormalizer::normalize)
+                .map(AuthModule::getModuleKey)
+                .filter(java.util.Objects::nonNull)
                 .toList();
 
         String token = jwtUtil.generateToken(user, roles, moduleKeys);

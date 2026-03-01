@@ -22,7 +22,7 @@ public class ModuleLicenseServiceImpl implements ModuleLicenseService {
 
     @Override
     public void assertLicensed(UUID tenantId, String moduleCode) {
-        AuthModule module = moduleRepository.findByNameIgnoreCase(moduleCode)
+        AuthModule module = moduleRepository.findByModuleKeyIgnoreCaseAndTenantId(moduleCode, tenantId)
                 .orElseThrow(() -> new ModuleNotLicensedException("Module not licensed"));
 
         ModuleLicense moduleLicense = moduleLicenseRepository.findByTenantIdAndModule_Id(tenantId, module.getId())

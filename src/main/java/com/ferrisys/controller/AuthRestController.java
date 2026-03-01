@@ -33,7 +33,7 @@ public class AuthRestController {
     @PostMapping("/register")
     @ResponseStatus(HttpStatus.CREATED)
     // SaaS B2B policy: user registration is restricted to IAM privileged users.
-    @PreAuthorize("hasAuthority('MODULE_CORE_DE_AUTENTICACION') or hasRole('ADMIN')")
+    @PreAuthorize("hasAuthority('MODULE_CORE_AUTH') or hasRole('ADMIN')")
     public AuthResponse register(@Valid @RequestBody RegisterRequest request) {
         return userService.registerUser(request);
     }

@@ -4,6 +4,7 @@ import com.ferrisys.common.dto.ModuleDTO;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.common.util.ModuleKeyNormalizer;
 import com.ferrisys.core.tenant.TenantContextHolder;
 import com.ferrisys.mapper.ModuleMapper;
 import com.ferrisys.repository.ModuleRepository;
@@ -30,12 +31,13 @@ public class ModuleServiceImpl {
             throw new NotFoundException("Módulo no encontrado");
         }
         module.setTenantId(tenantId);
+        module.setModuleKey(ModuleKeyNormalizer.normalize(module.getModuleKey()));
         moduleRepository.save(module);
     }
 
     public PageResponse<ModuleDTO> getAll(int page, int size) {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        Page<ModuleDTO> pageDto = moduleRepository.findByTenantId(tenantId, PageRequest.of(page, size))
+        Page<ModuleDTO> pageDto = moduleRepository.findByTenantIdAndStatusOrderByNameAsc(tenantId, 1, PageRequest.of(page, size))
                 .map(moduleMapper::toDto);
         return PageResponse.from(pageDto);
     }
