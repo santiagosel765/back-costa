@@ -95,12 +95,39 @@ class OrgControllerIntegrationTest {
 
     @Test
     void shouldListBranches() throws Exception {
-        when(orgService.listBranches(0, 10, ""))
-                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 0, 10));
+        when(orgService.listBranches(1, 10, ""))
+                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 1, 10));
 
         mockMvc.perform(get("/v1/org/branches"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.data[0].name").value("Matriz"));
+    }
+
+
+
+    @Test
+    void shouldCreateBranchWithCreatedStatus() throws Exception {
+        when(orgService.saveBranch(any()))
+                .thenReturn(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null));
+
+        mockMvc.perform(post("/v1/org/branches")
+                        .contentType("application/json")
+                        .content("{\"code\":\"MTR\",\"name\":\"Matriz\"}"))
+                .andExpect(status().isCreated())
+                .andExpect(jsonPath("$.data.code").value("MTR"));
+    }
+
+
+
+    @Test
+    void shouldAllowZeroPageAndReturnNormalizedPage() throws Exception {
+        when(orgService.listBranches(0, 10, ""))
+                .thenReturn(new PageResponse<>(List.of(new BranchDTO(UUID.randomUUID().toString(), "MTR", "Matriz", null, null, true, null)), 1, 1, 1, 10));
+
+        mockMvc.perform(get("/v1/org/branches").param("page", "0"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1));
     }
 
     @Test
@@ -117,11 +144,12 @@ class OrgControllerIntegrationTest {
     @Test
     void shouldListAssignmentsByUserId() throws Exception {
         UUID userId = UUID.randomUUID();
-        when(orgService.listUserBranchAssignments(eq(userId), eq(null), eq(0), eq(10)))
-                .thenReturn(new PageResponse<>(List.of(new UserBranchAssignmentDTO(UUID.randomUUID().toString(), userId.toString(), UUID.randomUUID().toString(), true, null)), 1, 1, 0, 10));
+        when(orgService.listUserBranchAssignments(eq(userId), eq(null), eq(1), eq(10)))
+                .thenReturn(new PageResponse<>(List.of(new UserBranchAssignmentDTO(UUID.randomUUID().toString(), userId.toString(), UUID.randomUUID().toString(), true, null)), 1, 1, 1, 10));
 
         mockMvc.perform(get("/v1/org/user-branch-assignments").param("userId", userId.toString()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.data[0].userId").value(userId.toString()));
     }
 

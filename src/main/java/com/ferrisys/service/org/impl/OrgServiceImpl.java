@@ -49,9 +49,10 @@ public class OrgServiceImpl implements OrgService {
     public PageResponse<BranchDTO> listBranches(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         int normalizedPage = normalizePage(page);
+        int responsePage = normalizeResponsePage(page);
         var p = branchRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, safeSearch(search), PageRequest.of(normalizedPage, size));
-        return PageResponse.of(branchMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return PageResponse.of(branchMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), responsePage, p.getSize());
     }
 
     @Override
@@ -107,10 +108,11 @@ public class OrgServiceImpl implements OrgService {
     public PageResponse<WarehouseDTO> listWarehouses(UUID branchId, int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         int normalizedPage = normalizePage(page);
+        int responsePage = normalizeResponsePage(page);
         ensureBranch(branchId, tenantId);
         var p = warehouseRepository.findByTenantIdAndBranch_IdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
                 tenantId, branchId, safeSearch(search), PageRequest.of(normalizedPage, size));
-        return PageResponse.of(warehouseMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
+        return PageResponse.of(warehouseMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), responsePage, p.getSize());
     }
 
     @Override
@@ -162,6 +164,7 @@ public class OrgServiceImpl implements OrgService {
     public PageResponse<UserBranchAssignmentDTO> listUserBranchAssignments(UUID userId, UUID branchId, int page, int size) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         Page<UserBranchAssignment> assignments;
+        int responsePage = normalizeResponsePage(page);
         PageRequest pageRequest = PageRequest.of(normalizePage(page), size);
 
         if (userId != null && branchId != null) {
@@ -176,7 +179,7 @@ public class OrgServiceImpl implements OrgService {
         }
 
         return PageResponse.of(userBranchAssignmentMapper.toDtoList(assignments.getContent()),
-                assignments.getTotalPages(), assignments.getTotalElements(), assignments.getNumber(), assignments.getSize());
+                assignments.getTotalPages(), assignments.getTotalElements(), responsePage, assignments.getSize());
     }
 
     @Override
@@ -263,7 +266,11 @@ public class OrgServiceImpl implements OrgService {
     }
 
     private int normalizePage(int page) {
-        return page <= 1 ? 0 : page - 1;
+        return normalizeResponsePage(page) - 1;
+    }
+
+    private int normalizeResponsePage(int page) {
+        return Math.max(page, 1);
     }
 
     private void validateBranch(String code, String name) {
