@@ -66,6 +66,11 @@ The repository includes helper scripts that start the backend and frontend toget
 
 Both scripts install missing frontend dependencies, launch `./mvnw spring-boot:run` for this service, and start the Angular dev server. Use `Ctrl+C` to stop both processes.
 
+### Flyway migration policy (dev note)
+
+- **No modificar migraciones ya aplicadas.**
+- Si una migración aplicada se modifica accidentalmente en local, corregir restaurando el archivo original y luego ejecutar `mvn flyway:repair` **de forma manual** o reiniciar la base de datos de desarrollo.
+
 
 ---
 
