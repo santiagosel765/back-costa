@@ -17,7 +17,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 @RequestMapping("/v1/modules")
 @RequiredArgsConstructor
-@PreAuthorize("hasAuthority('MODULE_CORE_DE_AUTENTICACION') or hasRole('ADMIN')")
+@PreAuthorize("hasAuthority('MODULE_CORE_AUTH') or hasRole('ADMIN')")
 public class ModuleController {
 
     private final ModuleServiceImpl moduleService;

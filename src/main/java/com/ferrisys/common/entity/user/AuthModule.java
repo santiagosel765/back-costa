@@ -32,7 +32,10 @@ public class AuthModule extends Auditable implements Serializable {
     @Column(columnDefinition = "uuid", updatable = false)
     private UUID id;
 
-    @Column(nullable = false, unique = true)
+    @Column(name = "module_key", nullable = false, length = 100)
+    private String moduleKey;
+
+    @Column(nullable = false)
     private String name;
 
     @Column(nullable = false)

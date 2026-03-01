@@ -21,7 +21,7 @@ public class AuditEventController {
     private final AuditEventService auditEventService;
 
     @GetMapping
-    @PreAuthorize("hasRole('ADMIN') or hasAuthority('MODULE_CORE_DE_AUTENTICACION')")
+    @PreAuthorize("hasRole('ADMIN') or hasAuthority('MODULE_CORE_AUTH')")
     public PageResponse<AuditEventResponse> list(
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) LocalDateTime to,

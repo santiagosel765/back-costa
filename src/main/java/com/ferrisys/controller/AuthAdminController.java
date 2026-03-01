@@ -68,7 +68,7 @@ import org.springframework.web.bind.annotation.RestController;
 @RequiredArgsConstructor
 @Slf4j
 @PreAuthorize(
-        "@featureFlagService.enabledForCurrentUser('core-de-autenticacion') and (hasAuthority('MODULE_CORE_DE_AUTENTICACION') or hasRole('ADMIN'))")
+        "@featureFlagService.enabledForCurrentUser('core-auth') and (hasAuthority('MODULE_CORE_AUTH') or hasRole('ADMIN'))")
 public class AuthAdminController {
 
     private static final Map<String, String> MODULE_KEY_ALIASES = Map.ofEntries(
@@ -80,7 +80,7 @@ public class AuthAdminController {
             Map.entry("INVENTARIO", "INVENTORY"),
             Map.entry("COMPRAS", "PURCHASE"),
             Map.entry("VENTAS", "SALES"),
-            Map.entry("CORE_DE_AUTENTICACION", "AUTH_CORE"));
+            Map.entry("CORE_DE_AUTENTICACION", "CORE_AUTH"));
 
     private static final Map<String, String> MODULE_CANONICAL_NAMES = Map.ofEntries(
             Map.entry("CONFIG", "Configuración"),
@@ -88,7 +88,7 @@ public class AuthAdminController {
             Map.entry("INVENTORY", "Inventario"),
             Map.entry("PURCHASE", "Compras"),
             Map.entry("SALES", "Ventas"),
-            Map.entry("AUTH_CORE", "Core de Autenticación"));
+            Map.entry("CORE_AUTH", "Core de Autenticación"));
 
     private static final Map<String, String> MODULE_BASE_ROUTES = Map.ofEntries(
             Map.entry("CONFIG", "/main/config"),
@@ -96,7 +96,7 @@ public class AuthAdminController {
             Map.entry("INVENTORY", "/main/inventory"),
             Map.entry("PURCHASE", "/main/purchase"),
             Map.entry("SALES", "/main/sales"),
-            Map.entry("AUTH_CORE", "/main/auth"));
+            Map.entry("CORE_AUTH", "/main/auth"));
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -214,9 +214,11 @@ public class AuthAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public Role createRole(@Valid @RequestBody AdminRoleRequest request) {
         Role role = Role.builder()
+                .moduleKey(ModuleKeyNormalizer.normalize(request.name()))
                 .name(request.name())
                 .description(request.description())
                 .status(request.status())
+                .tenantId(tenantContextHolder.requireTenantId())
                 .build();
         Role saved = roleRepository.save(role);
         auditEventService.publish(AuditEventPublishRequest.builder()
@@ -262,21 +264,25 @@ public class AuthAdminController {
 
     @GetMapping("/modules")
     public List<AuthModule> listModules() {
-        return moduleRepository.findAll();
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        return moduleRepository.findByTenantIdAndStatusOrderByNameAsc(tenantId, 1, org.springframework.data.domain.Pageable.unpaged()).getContent();
     }
 
     @GetMapping("/modules/{id}")
     public AuthModule getModule(@PathVariable UUID id) {
-        return moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Module not found"));
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        return moduleRepository.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException("Module not found"));
     }
 
     @PostMapping("/modules")
     @ResponseStatus(HttpStatus.CREATED)
     public AuthModule createModule(@Valid @RequestBody AdminModuleRequest request) {
         AuthModule module = AuthModule.builder()
+                .moduleKey(ModuleKeyNormalizer.normalize(request.name()))
                 .name(request.name())
                 .description(request.description())
                 .status(request.status())
+                .tenantId(tenantContextHolder.requireTenantId())
                 .build();
         AuthModule saved = moduleRepository.save(module);
         auditEventService.publish(AuditEventPublishRequest.builder()
@@ -291,7 +297,9 @@ public class AuthAdminController {
 
     @PutMapping("/modules/{id}")
     public AuthModule updateModule(@PathVariable UUID id, @Valid @RequestBody AdminModuleRequest request) {
-        AuthModule module = moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Module not found"));
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        AuthModule module = moduleRepository.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException("Module not found"));
+        module.setModuleKey(ModuleKeyNormalizer.normalize(request.name()));
         module.setName(request.name());
         module.setDescription(request.description());
         module.setStatus(request.status());
@@ -309,7 +317,8 @@ public class AuthAdminController {
     @DeleteMapping("/modules/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void deleteModule(@PathVariable UUID id) {
-        AuthModule module = moduleRepository.findById(id).orElseThrow(() -> new NotFoundException("Module not found"));
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        AuthModule module = moduleRepository.findByIdAndTenantId(id, tenantId).orElseThrow(() -> new NotFoundException("Module not found"));
         moduleRepository.deleteById(id);
         auditEventService.publish(AuditEventPublishRequest.builder()
                 .tenantId(module.getTenantId())
@@ -519,14 +528,14 @@ public class AuthAdminController {
 
         Map<String, AuthModule> canonicalModulesByKey = activeModules.stream()
                 .collect(Collectors.toMap(
-                        module -> resolveModuleKey(module.getName()),
+                        module -> resolveModuleKey(module),
                         module -> module,
                         this::pickCanonicalModule,
                         LinkedHashMap::new));
 
         List<AuthModule> normalizedModules = canonicalModulesByKey.values().stream()
                 .sorted(Comparator.comparing(
-                        module -> resolveModuleKey(module.getName()),
+                        module -> resolveModuleKey(module),
                         Comparator.nullsLast(String::compareTo)))
                 .toList();
 
@@ -534,7 +543,7 @@ public class AuthAdminController {
         List<RoleModuleMetadataDto> moduleMetadata = normalizedModules.stream()
                 .map(module -> RoleModuleMetadataDto.builder()
                         .id(module.getId())
-                        .key(resolveModuleKey(module.getName()))
+                        .key(resolveModuleKey(module))
                         .name(resolveModuleName(module))
                         .baseRoute(resolveModuleBaseRoute(module))
                         .build())
@@ -553,7 +562,7 @@ public class AuthAdminController {
                 .filter(assignment -> assignment.getStatus() == null || assignment.getStatus() == 1)
                 .map(AuthRoleModule::getModule)
                 .collect(Collectors.toMap(
-                        module -> resolveModuleKey(module.getName()),
+                        module -> resolveModuleKey(module),
                         module -> RolePermissionsDto.ActionPermissionsDto.builder()
                                 .read(true)
                                 .write(true)
@@ -568,8 +577,10 @@ public class AuthAdminController {
                 .build();
     }
 
-    private String resolveModuleKey(String moduleName) {
-        String normalized = ModuleKeyNormalizer.normalize(moduleName);
+    private String resolveModuleKey(AuthModule module) {
+        String normalized = module != null && module.getModuleKey() != null && !module.getModuleKey().isBlank()
+                ? ModuleKeyNormalizer.normalize(module.getModuleKey())
+                : ModuleKeyNormalizer.normalize(module != null ? module.getName() : null);
         if (normalized == null) {
             return null;
         }
@@ -582,17 +593,17 @@ public class AuthAdminController {
     }
 
     private boolean isCanonicalModule(AuthModule module) {
-        String key = resolveModuleKey(module.getName());
-        return key != null && key.equals(ModuleKeyNormalizer.normalize(module.getName()));
+        String key = resolveModuleKey(module);
+        return key != null && key.equals(ModuleKeyNormalizer.normalize(module.getModuleKey()));
     }
 
     private String resolveModuleName(AuthModule module) {
-        String key = resolveModuleKey(module.getName());
+        String key = resolveModuleKey(module);
         return MODULE_CANONICAL_NAMES.getOrDefault(key, module.getName());
     }
 
     private String resolveModuleBaseRoute(AuthModule module) {
-        String key = resolveModuleKey(module.getName());
+        String key = resolveModuleKey(module);
         if (key == null || key.isBlank()) {
             return null;
         }

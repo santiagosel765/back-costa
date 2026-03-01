@@ -15,13 +15,13 @@ import java.util.UUID;
 public interface RoleModuleRepository extends JpaRepository<AuthRoleModule, UUID> {
     void deleteByRole(Role role);
 
-    @Query("SELECT rm.module FROM AuthRoleModule rm WHERE rm.role.id = :roleId AND rm.status = 1")
+    @Query("SELECT rm.module FROM AuthRoleModule rm WHERE rm.role.id = :roleId AND rm.status = 1 AND rm.module.status = 1 ORDER BY rm.module.name ASC")
     Page<AuthModule> findModulesByRoleId(UUID roleId, Pageable pageable);
 
     @Query("SELECT rm.module.id FROM AuthRoleModule rm WHERE rm.role.id = :roleId AND rm.status = 1")
     List<UUID> findActiveModuleIdsByRoleId(UUID roleId);
 
-    @Query("SELECT DISTINCT rm.module FROM AuthRoleModule rm WHERE rm.role.id IN :roleIds AND rm.status = 1")
+    @Query("SELECT DISTINCT rm.module FROM AuthRoleModule rm WHERE rm.role.id IN :roleIds AND rm.status = 1 AND rm.module.status = 1")
     List<AuthModule> findDistinctModulesByRoleIds(Collection<UUID> roleIds);
 
     List<AuthRoleModule> findByRoleIdAndStatus(UUID roleId, Integer status);

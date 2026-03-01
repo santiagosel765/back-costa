@@ -68,7 +68,7 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
         OffsetDateTime now = OffsetDateTime.now();
 
         for (ModuleLicense license : moduleLicenseRepository.findAllByTenantIdWithModule(tenantId)) {
-            if (license.getModule() == null || license.getModule().getName() == null) {
+            if (license.getModule() == null || license.getModule().getModuleKey() == null) {
                 continue;
             }
 
@@ -83,7 +83,7 @@ public class FeatureFlagServiceImpl implements FeatureFlagService {
                 enabled = false;
             }
 
-            enabledMap.put(ModuleKeyNormalizer.normalize(license.getModule().getName()), enabled);
+            enabledMap.put(ModuleKeyNormalizer.normalize(license.getModule().getModuleKey()), enabled);
         }
 
         return new CachedModules(enabledMap, Instant.now().plusSeconds(CACHE_TTL_SECONDS));
