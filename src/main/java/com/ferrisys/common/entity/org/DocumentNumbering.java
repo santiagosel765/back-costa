@@ -1,6 +1,7 @@
 package com.ferrisys.common.entity.org;
 
 import com.ferrisys.common.audit.Auditable;
+import com.ferrisys.common.entity.config.DocumentType;
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
 import jakarta.persistence.FetchType;
@@ -19,8 +20,8 @@ import org.hibernate.annotations.GenericGenerator;
 @Getter
 @Setter
 @Entity
-@Table(name = "org_warehouse")
-public class Warehouse extends Auditable implements Serializable {
+@Table(name = "org_document_numbering")
+public class DocumentNumbering extends Auditable implements Serializable {
 
     @Id
     @GeneratedValue(generator = "UUID")
@@ -35,41 +36,18 @@ public class Warehouse extends Auditable implements Serializable {
     @JoinColumn(name = "branch_id", nullable = false)
     private Branch branch;
 
-    @Column(nullable = false)
-    private String code;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "document_type_id", nullable = false)
+    private DocumentType documentType;
+
+    @Column(nullable = false, length = 20)
+    private String series;
+
+    @Column(name = "next_number", nullable = false)
+    private Integer nextNumber;
 
     @Column(nullable = false)
-    private String name;
-
-    @Column
-    private String description;
-
-    @Column(name = "address_line1", length = 120)
-    private String addressLine1;
-
-    @Column(name = "address_line2", length = 120)
-    private String addressLine2;
-
-    @Column(length = 80)
-    private String city;
-
-    @Column(length = 80)
-    private String state;
-
-    @Column(length = 80)
-    private String country;
-
-    @Column(name = "postal_code", length = 20)
-    private String postalCode;
-
-    @Column(precision = 10, scale = 7)
-    private java.math.BigDecimal latitude;
-
-    @Column(precision = 10, scale = 7)
-    private java.math.BigDecimal longitude;
-
-    @Column(name = "location_notes")
-    private String locationNotes;
+    private Integer padding = 8;
 
     @Column(nullable = false)
     private Boolean active = Boolean.TRUE;
