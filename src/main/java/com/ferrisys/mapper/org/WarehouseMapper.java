@@ -14,6 +14,7 @@ public interface WarehouseMapper extends IdMappingSupport {
 
     @Mapping(target = "id", expression = "java(fromUuid(entity.getId()))")
     @Mapping(target = "branchId", expression = "java(fromUuid(entity.getBranch().getId()))")
+    @Mapping(target = "warehouseType", expression = "java(entity.getWarehouseType() == null ? \"MAIN\" : entity.getWarehouseType())")
     @Mapping(target = "updatedAt", expression = "java(entity.getUpdatedAt() != null ? entity.getUpdatedAt().toString() : null)")
     WarehouseDTO toDto(Warehouse entity);
 

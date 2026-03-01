@@ -67,6 +67,15 @@ public class Branch extends Auditable implements Serializable {
     @Column(name = "location_notes")
     private String locationNotes;
 
+    @Column(length = 50)
+    private String phone;
+
+    @Column(length = 120)
+    private String email;
+
+    @Column(name = "manager_name", length = 120)
+    private String managerName;
+
     @Column(nullable = false)
     private Boolean active = Boolean.TRUE;
 

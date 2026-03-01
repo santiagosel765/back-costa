@@ -71,6 +71,9 @@ public class Warehouse extends Auditable implements Serializable {
     @Column(name = "location_notes")
     private String locationNotes;
 
+    @Column(name = "warehouse_type", nullable = false, length = 20)
+    private String warehouseType = "MAIN";
+
     @Column(nullable = false)
     private Boolean active = Boolean.TRUE;
 

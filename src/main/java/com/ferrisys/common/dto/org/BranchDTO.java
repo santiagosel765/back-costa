@@ -16,6 +16,9 @@ public record BranchDTO(String id,
                         BigDecimal latitude,
                         BigDecimal longitude,
                         String locationNotes,
+                        String phone,
+                        String email,
+                        String managerName,
                         Boolean active,
                         String updatedAt) {
 }
