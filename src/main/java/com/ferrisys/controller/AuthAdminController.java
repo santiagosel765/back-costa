@@ -36,8 +36,10 @@ import jakarta.validation.constraints.NotNull;
 import java.time.OffsetDateTime;
 import java.util.ArrayList;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -68,6 +70,33 @@ import org.springframework.web.bind.annotation.RestController;
 @PreAuthorize(
         "@featureFlagService.enabledForCurrentUser('core-de-autenticacion') and (hasAuthority('MODULE_CORE_DE_AUTENTICACION') or hasRole('ADMIN'))")
 public class AuthAdminController {
+
+    private static final Map<String, String> MODULE_KEY_ALIASES = Map.ofEntries(
+            Map.entry("CONFIGURACION", "CONFIG"),
+            Map.entry("SETTINGS", "CONFIG"),
+            Map.entry("ORGANIZACION", "ORG"),
+            Map.entry("SUCURSALES_Y_ORGANIZACIONES", "ORG"),
+            Map.entry("ORG_BRANCH", "ORG"),
+            Map.entry("INVENTARIO", "INVENTORY"),
+            Map.entry("COMPRAS", "PURCHASE"),
+            Map.entry("VENTAS", "SALES"),
+            Map.entry("CORE_DE_AUTENTICACION", "AUTH_CORE"));
+
+    private static final Map<String, String> MODULE_CANONICAL_NAMES = Map.ofEntries(
+            Map.entry("CONFIG", "Configuración"),
+            Map.entry("ORG", "Organización"),
+            Map.entry("INVENTORY", "Inventario"),
+            Map.entry("PURCHASE", "Compras"),
+            Map.entry("SALES", "Ventas"),
+            Map.entry("AUTH_CORE", "Core de Autenticación"));
+
+    private static final Map<String, String> MODULE_BASE_ROUTES = Map.ofEntries(
+            Map.entry("CONFIG", "/main/config"),
+            Map.entry("ORG", "/main/org"),
+            Map.entry("INVENTORY", "/main/inventory"),
+            Map.entry("PURCHASE", "/main/purchase"),
+            Map.entry("SALES", "/main/sales"),
+            Map.entry("AUTH_CORE", "/main/auth"));
 
     private final UserRepository userRepository;
     private final RoleRepository roleRepository;
@@ -488,12 +517,26 @@ public class AuthAdminController {
                 .map(AuthRoleModule::getModule)
                 .toList();
 
-        List<UUID> moduleIds = activeModules.stream().map(AuthModule::getId).toList();
-        List<RoleModuleMetadataDto> moduleMetadata = activeModules.stream()
+        Map<String, AuthModule> canonicalModulesByKey = activeModules.stream()
+                .collect(Collectors.toMap(
+                        module -> resolveModuleKey(module.getName()),
+                        module -> module,
+                        this::pickCanonicalModule,
+                        LinkedHashMap::new));
+
+        List<AuthModule> normalizedModules = canonicalModulesByKey.values().stream()
+                .sorted(Comparator.comparing(
+                        module -> resolveModuleKey(module.getName()),
+                        Comparator.nullsLast(String::compareTo)))
+                .toList();
+
+        List<UUID> moduleIds = normalizedModules.stream().map(AuthModule::getId).toList();
+        List<RoleModuleMetadataDto> moduleMetadata = normalizedModules.stream()
                 .map(module -> RoleModuleMetadataDto.builder()
                         .id(module.getId())
-                        .name(module.getName())
                         .key(resolveModuleKey(module.getName()))
+                        .name(resolveModuleName(module))
+                        .baseRoute(resolveModuleBaseRoute(module))
                         .build())
                 .toList();
 
@@ -531,11 +574,29 @@ public class AuthAdminController {
             return null;
         }
 
-        return switch (normalized) {
-            case "INVENTARIO" -> "INVENTORY";
-            case "CORE_DE_AUTENTICACION" -> "AUTH_CORE";
-            default -> normalized;
-        };
+        return MODULE_KEY_ALIASES.getOrDefault(normalized, normalized);
+    }
+
+    private AuthModule pickCanonicalModule(AuthModule first, AuthModule second) {
+        return isCanonicalModule(first) ? first : second;
+    }
+
+    private boolean isCanonicalModule(AuthModule module) {
+        String key = resolveModuleKey(module.getName());
+        return key != null && key.equals(ModuleKeyNormalizer.normalize(module.getName()));
+    }
+
+    private String resolveModuleName(AuthModule module) {
+        String key = resolveModuleKey(module.getName());
+        return MODULE_CANONICAL_NAMES.getOrDefault(key, module.getName());
+    }
+
+    private String resolveModuleBaseRoute(AuthModule module) {
+        String key = resolveModuleKey(module.getName());
+        if (key == null || key.isBlank()) {
+            return null;
+        }
+        return MODULE_BASE_ROUTES.getOrDefault(key, "/main/" + key.toLowerCase());
     }
 
     private AdminUserResponse mapUser(User user, List<AuthUserRole> assignments) {

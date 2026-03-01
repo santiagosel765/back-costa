@@ -146,4 +146,60 @@ class AuthAdminControllerIntegrationTest {
                 .andExpect(jsonPath("$.permissions.INVENTORY.write").value(true))
                 .andExpect(jsonPath("$.permissions.AUTH_CORE.read").value(true));
     }
+    @Test
+    void shouldReturnNormalizedRoleModulesWithoutAliasesOrDuplicates() throws Exception {
+        UUID tenantId = UUID.randomUUID();
+        UUID roleId = UUID.randomUUID();
+
+        Role role = Role.builder()
+                .id(roleId)
+                .name("ADMIN")
+                .description("Admin role")
+                .status(1)
+                .tenantId(tenantId)
+                .build();
+
+        AuthModule deprecatedConfig = AuthModule.builder()
+                .id(UUID.randomUUID())
+                .name("Configuración")
+                .description("legacy")
+                .status(1)
+                .tenantId(tenantId)
+                .build();
+
+        AuthModule canonicalConfig = AuthModule.builder()
+                .id(UUID.randomUUID())
+                .name("CONFIG")
+                .description("canonical")
+                .status(1)
+                .tenantId(tenantId)
+                .build();
+
+        AuthModule orgAlias = AuthModule.builder()
+                .id(UUID.randomUUID())
+                .name("Sucursales y Organizaciones")
+                .description("legacy")
+                .status(1)
+                .tenantId(tenantId)
+                .build();
+
+        when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
+        when(roleRepository.findByIdAndTenantId(roleId, tenantId)).thenReturn(Optional.of(role));
+        when(roleModuleRepository.findByRoleIdAndTenantIdAndStatus(roleId, tenantId, 1)).thenReturn(List.of(
+                AuthRoleModule.builder().role(role).module(deprecatedConfig).status(1).tenantId(tenantId).build(),
+                AuthRoleModule.builder().role(role).module(canonicalConfig).status(1).tenantId(tenantId).build(),
+                AuthRoleModule.builder().role(role).module(orgAlias).status(1).tenantId(tenantId).build()
+        ));
+
+        mockMvc.perform(get("/v1/auth/admin/role-modules").param("roleId", roleId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.modules.length()").value(2))
+                .andExpect(jsonPath("$.moduleIds.length()").value(2))
+                .andExpect(jsonPath("$.modules[0].key").value("CONFIG"))
+                .andExpect(jsonPath("$.modules[0].name").value("Configuración"))
+                .andExpect(jsonPath("$.modules[0].baseRoute").value("/main/config"))
+                .andExpect(jsonPath("$.modules[1].key").value("ORG"))
+                .andExpect(jsonPath("$.modules[1].baseRoute").value("/main/org"));
+    }
+
 }

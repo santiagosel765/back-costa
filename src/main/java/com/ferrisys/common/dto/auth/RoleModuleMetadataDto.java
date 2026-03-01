@@ -17,4 +17,5 @@ public class RoleModuleMetadataDto {
     private UUID id;
     private String key;
     private String name;
+    private String baseRoute;
 }
