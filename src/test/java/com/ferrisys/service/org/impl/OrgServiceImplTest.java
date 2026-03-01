@@ -12,9 +12,12 @@ import com.ferrisys.common.entity.user.User;
 import com.ferrisys.config.security.JWTUtil;
 import com.ferrisys.core.tenant.TenantContextHolder;
 import com.ferrisys.mapper.org.BranchMapper;
+import com.ferrisys.mapper.org.DocumentNumberingMapper;
 import com.ferrisys.mapper.org.UserBranchAssignmentMapper;
 import com.ferrisys.mapper.org.WarehouseMapper;
 import com.ferrisys.repository.BranchRepository;
+import com.ferrisys.repository.DocumentNumberingRepository;
+import com.ferrisys.repository.DocumentTypeRepository;
 import com.ferrisys.repository.UserBranchAssignmentRepository;
 import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.WarehouseRepository;
@@ -48,6 +51,12 @@ class OrgServiceImplTest {
     @Mock
     private UserBranchAssignmentMapper userBranchAssignmentMapper;
     @Mock
+    private DocumentNumberingMapper documentNumberingMapper;
+    @Mock
+    private DocumentTypeRepository documentTypeRepository;
+    @Mock
+    private DocumentNumberingRepository documentNumberingRepository;
+    @Mock
     private JWTUtil jwtUtil;
 
     private OrgServiceImpl service;
@@ -55,7 +64,8 @@ class OrgServiceImplTest {
     @BeforeEach
     void setUp() {
         service = new OrgServiceImpl(tenantContextHolder, branchRepository, warehouseRepository, userBranchAssignmentRepository,
-                userRepository, branchMapper, warehouseMapper, userBranchAssignmentMapper, jwtUtil);
+                userRepository, branchMapper, warehouseMapper, userBranchAssignmentMapper, documentNumberingMapper,
+                documentTypeRepository, documentNumberingRepository, jwtUtil);
     }
 
     @Test
@@ -89,7 +99,8 @@ class OrgServiceImplTest {
         when(branchRepository.findByTenantIdAndIdInAndActiveTrueAndDeletedAtIsNull(eq(tenantId), anyCollection()))
                 .thenReturn(List.of(activeBranch));
         when(branchMapper.toDto(activeBranch))
-                .thenReturn(new com.ferrisys.common.dto.org.BranchDTO(activeBranchId.toString(), "S1001", "Sucursal 1", null, null, true, null));
+                .thenReturn(new com.ferrisys.common.dto.org.BranchDTO(activeBranchId.toString(), "S1001", "Sucursal 1", null, null,
+                        null, null, null, null, null, null, null, null, null, true, null));
 
         var result = service.currentUserBranches();
 
