@@ -170,10 +170,15 @@ class OrgControllerIntegrationTest {
     }
 
     @Test
-    void shouldReturn400WhenListingAssignmentsWithoutFilters() throws Exception {
+    void shouldListAssignmentsWithoutFilters() throws Exception {
+        when(orgService.listUserBranchAssignments(eq(null), eq(null), eq(1), eq(10)))
+                .thenReturn(new PageResponse<>(List.of(new UserBranchAssignmentDTO(UUID.randomUUID().toString(), UUID.randomUUID().toString(), UUID.randomUUID().toString(), true, null)), 1, 1, 1, 10));
+
         mockMvc.perform(get("/v1/org/user-branch-assignments"))
-                .andExpect(status().isBadRequest())
-                .andExpect(jsonPath("$.error").value("VALIDATION_ERROR"));
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.message").value("OK"))
+                .andExpect(jsonPath("$.data.page").value(1))
+                .andExpect(jsonPath("$.data.data.length()").value(1));
     }
 
     @Test

@@ -175,7 +175,7 @@ public class OrgServiceImpl implements OrgService {
         } else if (branchId != null) {
             assignments = userBranchAssignmentRepository.findByTenantIdAndBranch_IdAndDeletedAtIsNull(tenantId, branchId, pageRequest);
         } else {
-            throw new BadRequestException("Debe enviar userId o branchId");
+            assignments = userBranchAssignmentRepository.findByTenantIdAndDeletedAtIsNull(tenantId, pageRequest);
         }
 
         return PageResponse.of(userBranchAssignmentMapper.toDtoList(assignments.getContent()),
