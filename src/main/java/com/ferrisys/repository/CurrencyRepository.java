@@ -27,6 +27,10 @@ public interface CurrencyRepository extends JpaRepository<Currency, UUID> {
 
     Optional<Currency> findByTenantIdAndCodeAndDeletedAtIsNull(UUID tenantId, String code);
 
+    boolean existsByTenantIdAndCodeAndDeletedAtIsNull(UUID tenantId, String code);
+
+    boolean existsByTenantIdAndCodeAndDeletedAtIsNullAndIdNot(UUID tenantId, String code, UUID id);
+
     @Modifying(clearAutomatically = true, flushAutomatically = true)
     @Query("""
             update Currency c
@@ -51,4 +55,6 @@ public interface CurrencyRepository extends JpaRepository<Currency, UUID> {
     int setFunctionalCurrency(@Param("tenantId") UUID tenantId, @Param("id") UUID id);
 
     boolean existsByTenantIdAndIsFunctionalTrueAndDeletedAtIsNullAndIdNot(UUID tenantId, UUID id);
+
+    Optional<Currency> findFirstByTenantIdAndActiveTrueAndDeletedAtIsNullAndIdNotOrderByCodeAsc(UUID tenantId, UUID id);
 }
