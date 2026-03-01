@@ -10,6 +10,8 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 import org.hibernate.annotations.GenericGenerator;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 
 @Getter @Setter @Entity @Table(name = "inv_product_attribute_value")
 public class ProductAttributeValue extends Auditable implements Serializable {
@@ -23,7 +25,8 @@ public class ProductAttributeValue extends Auditable implements Serializable {
     @Column(name = "value_bool") private Boolean valueBool;
     @Column(name = "value_date") private LocalDate valueDate;
     @Column(name = "option_id", columnDefinition = "uuid") private UUID optionId;
-    @Column(name = "value_json", columnDefinition = "TEXT") private String valueJson;
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "value_json", columnDefinition = "jsonb") private String valueJson;
     @Column(nullable = false) private Boolean active = Boolean.TRUE;
     @Column(name = "deleted_at") private OffsetDateTime deletedAt;
     @Column(name = "deleted_by") private String deletedBy;
