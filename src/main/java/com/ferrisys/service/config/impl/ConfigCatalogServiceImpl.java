@@ -30,6 +30,7 @@ import com.ferrisys.service.config.ConfigCatalogService;
 import java.time.OffsetDateTime;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -63,56 +64,73 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     @Transactional
     public CurrencyDTO saveCurrency(CurrencyDTO dto) {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        Currency entity = currencyMapper.toEntity(dto);
-        entity.setId(null);
-        entity.setTenantId(tenantId);
-        validateAndNormalizeCurrency(tenantId, entity, null);
-        entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
-        entity.setDecimals(dto.decimals() == null ? 2 : dto.decimals());
-        entity.setIsFunctional(dto.isFunctional() != null && dto.isFunctional());
-        entity.setDeletedAt(null);
-        entity.setDeletedBy(null);
-        Currency saved = currencyRepository.save(entity);
-        if (Boolean.TRUE.equals(saved.getIsFunctional())) {
-            currencyRepository.clearFunctionalForTenant(tenantId, saved.getId());
+        try {
+            Currency entity = currencyMapper.toEntity(dto);
+            entity.setId(null);
+            entity.setTenantId(tenantId);
+            validateAndNormalizeCurrency(tenantId, entity, null);
+            entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
+            entity.setDecimals(dto.decimals() == null ? 2 : dto.decimals());
+            boolean isFunctional = dto.isFunctional() != null && dto.isFunctional();
+            if (isFunctional) {
+                currencyRepository.unsetFunctionalCurrencies(tenantId, UUID.randomUUID());
+            }
+            entity.setIsFunctional(isFunctional);
+            entity.setDeletedAt(null);
+            entity.setDeletedBy(null);
+            Currency saved = currencyRepository.save(entity);
+            return currencyMapper.toDto(saved);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictException("Ya existe una moneda funcional para este tenant.");
         }
-        return currencyMapper.toDto(saved);
     }
 
     @Override
     @Transactional
     public CurrencyDTO updateCurrency(UUID id, CurrencyDTO dto) {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
-                .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
-        entity.setCode(dto.code());
-        entity.setName(dto.name());
-        entity.setDescription(dto.description());
-        entity.setSymbol(dto.symbol());
-        entity.setDecimals(dto.decimals() == null ? entity.getDecimals() : dto.decimals());
-        entity.setExchangeRateRef(dto.exchangeRateRef());
-        entity.setIsFunctional(dto.isFunctional() != null && dto.isFunctional());
-        validateAndNormalizeCurrency(tenantId, entity, id);
-        if (dto.active() != null) {
-            entity.setActive(dto.active());
+        try {
+            Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
+                    .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
+            entity.setCode(dto.code());
+            entity.setName(dto.name());
+            entity.setDescription(dto.description());
+            entity.setSymbol(dto.symbol());
+            entity.setDecimals(dto.decimals() == null ? entity.getDecimals() : dto.decimals());
+            entity.setExchangeRateRef(dto.exchangeRateRef());
+            boolean isFunctional = dto.isFunctional() != null && dto.isFunctional();
+            if (isFunctional) {
+                currencyRepository.unsetFunctionalCurrencies(tenantId, id);
+            }
+            entity.setIsFunctional(isFunctional);
+            validateAndNormalizeCurrency(tenantId, entity, id);
+            if (dto.active() != null) {
+                entity.setActive(dto.active());
+            }
+            Currency saved = currencyRepository.save(entity);
+            return currencyMapper.toDto(saved);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictException("Ya existe una moneda funcional para este tenant.");
         }
-        Currency saved = currencyRepository.save(entity);
-        if (Boolean.TRUE.equals(saved.getIsFunctional())) {
-            currencyRepository.clearFunctionalForTenant(tenantId, saved.getId());
-        }
-        return currencyMapper.toDto(saved);
     }
 
     @Override
     @Transactional
     public CurrencyDTO setFunctionalCurrency(UUID id) {
         UUID tenantId = tenantContextHolder.requireTenantId();
-        Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
-                .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
-        entity.setIsFunctional(Boolean.TRUE);
-        Currency saved = currencyRepository.save(entity);
-        currencyRepository.clearFunctionalForTenant(tenantId, saved.getId());
-        return currencyMapper.toDto(saved);
+        try {
+            Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
+                    .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
+            currencyRepository.unsetFunctionalCurrencies(tenantId, id);
+            int updatedRows = currencyRepository.setFunctionalCurrency(tenantId, id);
+            if (updatedRows == 0) {
+                throw new NotFoundException("Moneda no encontrada");
+            }
+            entity.setIsFunctional(Boolean.TRUE);
+            return currencyMapper.toDto(entity);
+        } catch (DataIntegrityViolationException exception) {
+            throw new ConflictException("Ya existe una moneda funcional para este tenant.");
+        }
     }
 
     @Override
@@ -121,6 +139,10 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
+        if (Boolean.TRUE.equals(entity.getIsFunctional())
+                && !currencyRepository.existsByTenantIdAndIsFunctionalTrueAndDeletedAtIsNullAndIdNot(tenantId, id)) {
+            throw new BadRequestException("No puedes eliminar la moneda funcional sin definir otra funcional antes.");
+        }
         entity.setIsFunctional(Boolean.FALSE);
         softDelete(entity);
         currencyRepository.save(entity);

@@ -113,7 +113,7 @@ class ConfigCatalogServiceImplTest {
         CurrencyDTO result = service.saveCurrency(new CurrencyDTO(null, "usd", "Dollar", null, "$", 2, true, null, true, null));
 
         assertThat(result.isFunctional()).isTrue();
-        verify(currencyRepository).clearFunctionalForTenant(tenantId, createdId);
+        verify(currencyRepository).unsetFunctionalCurrencies(eq(tenantId), any());
     }
 
     @Test
@@ -150,12 +150,12 @@ class ConfigCatalogServiceImplTest {
 
         when(tenantContextHolder.requireTenantId()).thenReturn(tenantId);
         when(currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(targetId, tenantId)).thenReturn(Optional.of(current));
-        when(currencyRepository.save(current)).thenReturn(current);
+        when(currencyRepository.setFunctionalCurrency(tenantId, targetId)).thenReturn(1);
         when(currencyMapper.toDto(current)).thenReturn(new CurrencyDTO(targetId.toString(), "USD", "Dollar", null, "$", 2, true, null, true, null));
 
         CurrencyDTO result = service.setFunctionalCurrency(targetId);
 
         assertThat(result.isFunctional()).isTrue();
-        verify(currencyRepository).clearFunctionalForTenant(tenantId, targetId);
+        verify(currencyRepository).unsetFunctionalCurrencies(tenantId, targetId);
     }
 }
