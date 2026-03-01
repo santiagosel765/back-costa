@@ -1,28 +1,19 @@
 package com.ferrisys.common.entity.inventory;
 
 import com.ferrisys.common.audit.Auditable;
-import jakarta.persistence.Column;
-import jakarta.persistence.Entity;
-import jakarta.persistence.GeneratedValue;
-import jakarta.persistence.Id;
-import jakarta.persistence.JoinColumn;
-import jakarta.persistence.ManyToOne;
-import jakarta.persistence.Table;
-import org.hibernate.annotations.GenericGenerator;
-import java.util.UUID;
-import lombok.AllArgsConstructor;
-import lombok.Builder;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
-
+import com.ferrisys.common.enums.catalog.ProductStatus;
+import com.ferrisys.common.enums.catalog.ProductType;
+import jakarta.persistence.*;
 import java.io.Serializable;
+import java.math.BigDecimal;
+import java.time.OffsetDateTime;
+import java.util.UUID;
+import lombok.Getter;
+import lombok.Setter;
+import org.hibernate.annotations.GenericGenerator;
 
 @Getter
 @Setter
-@NoArgsConstructor
-@AllArgsConstructor
-@Builder
 @Entity
 @Table(name = "inv_product")
 public class Product extends Auditable implements Serializable {
@@ -33,21 +24,54 @@ public class Product extends Auditable implements Serializable {
     @Column(columnDefinition = "uuid", updatable = false)
     private UUID id;
 
+    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
+    private UUID tenantId;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProductType type = ProductType.PRODUCT;
+
+    @Enumerated(EnumType.STRING)
+    @Column(nullable = false)
+    private ProductStatus status = ProductStatus.DRAFT;
+
+    private String sku;
+
     @Column(nullable = false)
     private String name;
 
     private String description;
 
-    @ManyToOne
-    @JoinColumn(name = "category_id", nullable = false)
-    private Category category;
+    @Column(name = "category_id", columnDefinition = "uuid")
+    private UUID categoryId;
 
-    @Column(name = "company_id")
-    private UUID companyId;
+    @Column(name = "brand_id", columnDefinition = "uuid")
+    private UUID brandId;
 
-    @Column(name = "tenant_id", columnDefinition = "uuid", nullable = false)
-    private UUID tenantId;
+    @Column(name = "uom_id", columnDefinition = "uuid")
+    private UUID uomId;
+
+    @Column(name = "tax_profile_id", columnDefinition = "uuid")
+    private UUID taxProfileId;
+
+    @Column(name = "base_price")
+    private BigDecimal basePrice;
+
+    @Column(name = "track_stock")
+    private Boolean trackStock = Boolean.FALSE;
+
+    @Column(name = "track_lot")
+    private Boolean trackLot = Boolean.FALSE;
+
+    @Column(name = "track_serial")
+    private Boolean trackSerial = Boolean.FALSE;
 
     @Column(nullable = false)
-    private Integer status;
+    private Boolean active = Boolean.TRUE;
+
+    @Column(name = "deleted_at")
+    private OffsetDateTime deletedAt;
+
+    @Column(name = "deleted_by")
+    private String deletedBy;
 }
