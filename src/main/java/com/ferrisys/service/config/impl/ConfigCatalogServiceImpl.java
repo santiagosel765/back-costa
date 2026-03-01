@@ -53,7 +53,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     public PageResponse<CurrencyDTO> listCurrencies(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = currencyRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
         return PageResponse.of(currencyMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -99,7 +99,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     public PageResponse<TaxDTO> listTaxes(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = taxRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
         return PageResponse.of(taxMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -146,7 +146,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     public PageResponse<ParameterDTO> listParameters(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = parameterRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
         return PageResponse.of(parameterMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -193,7 +193,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     public PageResponse<PaymentMethodDTO> listPaymentMethods(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = paymentMethodRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
         return PageResponse.of(paymentMethodMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -239,7 +239,7 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
     public PageResponse<DocumentTypeDTO> listDocumentTypes(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         var p = documentTypeRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizePage(page), size));
         return PageResponse.of(documentTypeMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -279,6 +279,11 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
                 .orElseThrow(() -> new NotFoundException("Tipo de documento no encontrado"));
         softDelete(entity);
         documentTypeRepository.save(entity);
+    }
+
+
+    private int normalizePage(int page) {
+        return page <= 1 ? 0 : page - 1;
     }
 
     private String safeSearch(String search) {
