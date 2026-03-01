@@ -37,6 +37,18 @@ public class Currency extends Auditable implements Serializable {
     @Column
     private String description;
 
+    @Column(name = "symbol")
+    private String symbol;
+
+    @Column(name = "decimals", nullable = false)
+    private Integer decimals = 2;
+
+    @Column(name = "is_functional", nullable = false)
+    private Boolean isFunctional = Boolean.FALSE;
+
+    @Column(name = "exchange_rate_ref")
+    private Double exchangeRateRef;
+
     @Column(nullable = false)
     private Boolean active = Boolean.TRUE;
 

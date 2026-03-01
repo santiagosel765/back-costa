@@ -1,6 +1,7 @@
 package com.ferrisys.controller;
 
 import com.ferrisys.common.api.ApiResponse;
+import com.ferrisys.common.dto.PagedData;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.config.CurrencyDTO;
 import com.ferrisys.common.dto.config.DocumentTypeDTO;
@@ -30,17 +31,19 @@ public class ConfigController {
     private final ConfigCatalogService service;
 
     @GetMapping("/currencies")
-    public ApiResponse<java.util.List<CurrencyDTO>> currencies(@RequestParam(defaultValue = "0") int page,
+    public ApiResponse<PagedData<CurrencyDTO>> currencies(@RequestParam(defaultValue = "1") int page,
                                                                @RequestParam(defaultValue = "10") int size,
                                                                @RequestParam(defaultValue = "") String search) {
         PageResponse<CurrencyDTO> response = service.listCurrencies(page, size, search);
-        return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
+        return ApiResponse.single(PagedData.from(response));
     }
 
     @PostMapping("/currencies")
     public ApiResponse<CurrencyDTO> createCurrency(@RequestBody CurrencyDTO dto) { return ApiResponse.single(service.saveCurrency(dto)); }
     @PutMapping("/currencies/{id}")
     public ApiResponse<CurrencyDTO> updateCurrency(@PathVariable UUID id, @RequestBody CurrencyDTO dto) { return ApiResponse.single(service.updateCurrency(id, dto)); }
+    @PutMapping("/currencies/{id}/functional")
+    public ApiResponse<CurrencyDTO> functionalCurrency(@PathVariable UUID id) { return ApiResponse.single(service.setFunctionalCurrency(id)); }
     @DeleteMapping("/currencies/{id}")
     public ApiResponse<Void> deleteCurrency(@PathVariable UUID id) { service.deleteCurrency(id); return ApiResponse.single(null); }
 

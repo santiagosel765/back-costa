@@ -12,6 +12,7 @@ public interface ConfigCatalogService {
     PageResponse<CurrencyDTO> listCurrencies(int page, int size, String search);
     CurrencyDTO saveCurrency(CurrencyDTO dto);
     CurrencyDTO updateCurrency(UUID id, CurrencyDTO dto);
+    CurrencyDTO setFunctionalCurrency(UUID id);
     void deleteCurrency(UUID id);
 
     PageResponse<TaxDTO> listTaxes(int page, int size, String search);
