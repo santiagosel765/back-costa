@@ -19,8 +19,8 @@ SELECT modules.id,
 FROM selected_tenant
 CROSS JOIN (
     VALUES
-        ('1f4f06e2-4438-4f48-b16d-26cf27f1064f'::UUID, 'CONFIG', 'Configuración y parámetros maestros', 1),
-        ('9dbf5cf0-4937-4f30-a8e8-0e67ba2098dd'::UUID, 'ORG', 'Gestión organizacional de sucursales y bodegas', 1)
+        ('8b31ce1f-777c-578c-b219-8712c745f1cf'::UUID, 'CONFIG', 'Configuración y parámetros maestros', 1),
+        ('e4738266-3e79-5b32-8a91-9f2f3ee27aa2'::UUID, 'ORG', 'Gestión organizacional de sucursales y bodegas', 1)
 ) AS modules (id, name, description, status)
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
