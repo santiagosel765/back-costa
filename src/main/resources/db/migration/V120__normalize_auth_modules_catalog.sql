@@ -62,98 +62,93 @@ WHERE id = 'e4738266-3e79-5b32-8a91-9f2f3ee27aa2'::uuid;
 -- Garantiza descripciones canónicas para los módulos de hub.
 UPDATE auth_module
 SET description = 'Configuración y parámetros maestros'
-WHERE name = 'CONFIG';
+WHERE normalize_module_key(name) = 'CONFIG';
 
 UPDATE auth_module
 SET description = 'Gestión organizacional de sucursales y bodegas'
-WHERE name = 'ORG';
+WHERE normalize_module_key(name) = 'ORG';
 
 UPDATE auth_module
 SET description = 'Control de existencias, movimientos, lotes y series.'
-WHERE name = 'INVENTORY';
+WHERE normalize_module_key(name) = 'INVENTORY';
 
--- Si quedaron registros activos duplicados para la misma key canónica por tenant,
--- mantiene uno activo y desactiva el resto.
+-- Construye mapa de duplicados por tenant + key normalizada conservando siempre MIN(id).
+CREATE TEMP TABLE duplicates_map (
+    dup_id UUID PRIMARY KEY,
+    canonical_id UUID NOT NULL,
+    tenant_id UUID,
+    key_norm TEXT NOT NULL
+) ON COMMIT DROP;
+
+INSERT INTO duplicates_map (dup_id, canonical_id, tenant_id, key_norm)
 WITH ranked AS (
-    SELECT id,
+    SELECT am.id,
+           am.tenant_id,
+           normalize_module_key(am.name::text) AS key_norm,
            ROW_NUMBER() OVER (
-               PARTITION BY tenant_id, normalize_module_key(name)
-               ORDER BY
-                   CASE WHEN name = normalize_module_key(name) THEN 0 ELSE 1 END,
-                   updated_at DESC NULLS LAST,
-                   created_at DESC NULLS LAST,
-                   id
-           ) AS row_num
-    FROM auth_module
-    WHERE status = 1
+               PARTITION BY am.tenant_id, normalize_module_key(am.name::text)
+               ORDER BY am.id
+           ) AS rn,
+           MIN(am.id) OVER (
+               PARTITION BY am.tenant_id, normalize_module_key(am.name::text)
+           ) AS canonical_id
+    FROM auth_module am
 )
-UPDATE auth_module am
-SET status = 0
+SELECT r.id,
+       r.canonical_id,
+       r.tenant_id,
+       r.key_norm
 FROM ranked r
-WHERE am.id = r.id
-  AND r.row_num > 1;
+WHERE r.rn > 1;
 
--- Reasigna auth_role_module al id canónico activo evitando colisiones por unique duro.
-WITH canonical AS (
-    SELECT DISTINCT ON (tenant_id, normalize_module_key(name))
-           id,
-           tenant_id,
-           normalize_module_key(name) AS canonical_key
-    FROM auth_module
-    WHERE status = 1
-    ORDER BY tenant_id, normalize_module_key(name),
-             CASE WHEN name = normalize_module_key(name) THEN 0 ELSE 1 END,
-             updated_at DESC NULLS LAST,
-             created_at DESC NULLS LAST,
-             id
-),
-arm_targets AS (
-    SELECT arm.id,
-           arm.tenant_id,
-           arm.auth_role_id,
-           arm.auth_module_id,
-           c.id AS canonical_module_id,
-           ROW_NUMBER() OVER (
-               PARTITION BY arm.tenant_id, arm.auth_role_id, c.id
-               ORDER BY
-                   CASE WHEN arm.status = 1 THEN 0 ELSE 1 END,
-                   arm.updated_at DESC NULLS LAST,
-                   arm.created_at DESC NULLS LAST,
-                   arm.id
-           ) AS row_num
-    FROM auth_role_module arm
-    JOIN auth_module am
-      ON am.id = arm.auth_module_id
-    JOIN canonical c
-      ON c.tenant_id = am.tenant_id
-     AND c.canonical_key = normalize_module_key(am.name)
-)
-DELETE FROM auth_role_module arm
-USING arm_targets t
-WHERE arm.id = t.id
-  AND t.row_num > 1;
+-- Repoint dinámico de cualquier FK simple que apunte a auth_module(id).
+DO $$
+DECLARE
+    fk_rec RECORD;
+BEGIN
+    FOR fk_rec IN
+        SELECT ns.nspname AS schema_name,
+               rel.relname AS table_name,
+               att.attname AS column_name
+        FROM pg_constraint con
+        JOIN pg_class rel
+          ON rel.oid = con.conrelid
+        JOIN pg_namespace ns
+          ON ns.oid = rel.relnamespace
+        JOIN pg_attribute att
+          ON att.attrelid = con.conrelid
+         AND att.attnum = con.conkey[1]
+        WHERE con.contype = 'f'
+          AND con.confrelid = 'auth_module'::regclass
+          AND array_length(con.conkey, 1) = 1
+          AND array_length(con.confkey, 1) = 1
+          AND con.confkey[1] = (
+              SELECT attnum
+              FROM pg_attribute
+              WHERE attrelid = 'auth_module'::regclass
+                AND attname = 'id'
+                AND NOT attisdropped
+              LIMIT 1
+          )
+    LOOP
+        EXECUTE format(
+            'UPDATE %I.%I t
+             SET %I = d.canonical_id
+             FROM duplicates_map d
+             WHERE t.%I = d.dup_id',
+            fk_rec.schema_name,
+            fk_rec.table_name,
+            fk_rec.column_name,
+            fk_rec.column_name
+        );
+    END LOOP;
+END
+$$;
 
-WITH canonical AS (
-    SELECT DISTINCT ON (tenant_id, normalize_module_key(name))
-           id,
-           tenant_id,
-           normalize_module_key(name) AS canonical_key
-    FROM auth_module
-    WHERE status = 1
-    ORDER BY tenant_id, normalize_module_key(name),
-             CASE WHEN name = normalize_module_key(name) THEN 0 ELSE 1 END,
-             updated_at DESC NULLS LAST,
-             created_at DESC NULLS LAST,
-             id
-)
-UPDATE auth_role_module arm
-SET auth_module_id = c.id
-FROM auth_module am
-JOIN canonical c
-  ON c.tenant_id = am.tenant_id
- AND c.canonical_key = normalize_module_key(am.name)
-WHERE arm.auth_module_id = am.id
-  AND arm.auth_module_id <> c.id;
+-- Borra definitivamente los módulos duplicados ya repointados.
+DELETE FROM auth_module am
+USING duplicates_map d
+WHERE am.id = d.dup_id;
 
 -- Mantiene la semilla CONFIG/ORG idempotente con las claves canónicas.
 WITH selected_tenant AS (
@@ -167,19 +162,34 @@ WITH selected_tenant AS (
         created_at NULLS LAST,
         id
     LIMIT 1
+),
+seed_modules AS (
+    SELECT modules.id,
+           modules.name,
+           modules.description,
+           modules.status,
+           selected_tenant.id AS tenant_id,
+           normalize_module_key(modules.name) AS key_norm
+    FROM selected_tenant
+    CROSS JOIN (
+        VALUES
+            ('8b31ce1f-777c-578c-b219-8712c745f1cf'::UUID, 'CONFIG', 'Configuración y parámetros maestros', 1),
+            ('e4738266-3e79-5b32-8a91-9f2f3ee27aa2'::UUID, 'ORG', 'Gestión organizacional de sucursales y bodegas', 1)
+    ) AS modules (id, name, description, status)
 )
 INSERT INTO auth_module (id, name, description, status, tenant_id)
-SELECT modules.id,
-       modules.name,
-       modules.description,
-       modules.status,
-       selected_tenant.id
-FROM selected_tenant
-CROSS JOIN (
-    VALUES
-        ('8b31ce1f-777c-578c-b219-8712c745f1cf'::UUID, 'CONFIG', 'Configuración y parámetros maestros', 1),
-        ('e4738266-3e79-5b32-8a91-9f2f3ee27aa2'::UUID, 'ORG', 'Gestión organizacional de sucursales y bodegas', 1)
-) AS modules (id, name, description, status)
+SELECT sm.id,
+       sm.name,
+       sm.description,
+       sm.status,
+       sm.tenant_id
+FROM seed_modules sm
+WHERE NOT EXISTS (
+    SELECT 1
+    FROM auth_module am
+    WHERE am.tenant_id = sm.tenant_id
+      AND normalize_module_key(am.name) = sm.key_norm
+)
 ON CONFLICT (id) DO UPDATE
 SET name = EXCLUDED.name,
     description = EXCLUDED.description,
@@ -189,5 +199,4 @@ SET name = EXCLUDED.name,
 DROP INDEX IF EXISTS uq_auth_module_name;
 DROP INDEX IF EXISTS uq_auth_module_tenant_key_ci;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_auth_module_tenant_key_ci
-    ON auth_module (tenant_id, normalize_module_key(name))
-    WHERE status = 1;
+    ON auth_module (tenant_id, normalize_module_key(name));
