@@ -68,9 +68,9 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
             Currency entity = currencyMapper.toEntity(dto);
             entity.setId(null);
             entity.setTenantId(tenantId);
-            validateAndNormalizeCurrency(tenantId, entity, null);
             entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
             entity.setDecimals(dto.decimals() == null ? 2 : dto.decimals());
+            validateAndNormalizeCurrency(tenantId, entity, null);
             boolean isFunctional = dto.isFunctional() != null && dto.isFunctional();
             if (isFunctional) {
                 currencyRepository.unsetFunctionalCurrencies(tenantId, UUID.randomUUID());
@@ -98,14 +98,18 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
             entity.setSymbol(dto.symbol());
             entity.setDecimals(dto.decimals() == null ? entity.getDecimals() : dto.decimals());
             entity.setExchangeRateRef(dto.exchangeRateRef());
-            boolean isFunctional = dto.isFunctional() != null && dto.isFunctional();
-            if (isFunctional) {
+            boolean isFunctional = dto.isFunctional() != null ? dto.isFunctional() : Boolean.TRUE.equals(entity.getIsFunctional());
+            if (Boolean.TRUE.equals(isFunctional)) {
                 currencyRepository.unsetFunctionalCurrencies(tenantId, id);
             }
             entity.setIsFunctional(isFunctional);
             validateAndNormalizeCurrency(tenantId, entity, id);
             if (dto.active() != null) {
                 entity.setActive(dto.active());
+            }
+            if (Boolean.FALSE.equals(entity.getActive()) && Boolean.TRUE.equals(entity.getIsFunctional())) {
+                entity.setIsFunctional(Boolean.FALSE);
+                assignFunctionalCurrencyIfAvailable(tenantId, id);
             }
             Currency saved = currencyRepository.save(entity);
             return currencyMapper.toDto(saved);
@@ -139,10 +143,15 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         Currency entity = currencyRepository.findByIdAndTenantIdAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new NotFoundException("Moneda no encontrada"));
-        if (Boolean.TRUE.equals(entity.getIsFunctional())
-                && !currencyRepository.existsByTenantIdAndIsFunctionalTrueAndDeletedAtIsNullAndIdNot(tenantId, id)) {
-            throw new BadRequestException("No puedes eliminar la moneda funcional sin definir otra funcional antes.");
+
+        if (Boolean.TRUE.equals(entity.getIsFunctional())) {
+            Currency replacement = currencyRepository
+                    .findFirstByTenantIdAndActiveTrueAndDeletedAtIsNullAndIdNotOrderByCodeAsc(tenantId, id)
+                    .orElseThrow(() -> new ConflictException("No puedes eliminar la moneda funcional si no existe otra moneda activa."));
+            currencyRepository.unsetFunctionalCurrencies(tenantId, replacement.getId());
+            currencyRepository.setFunctionalCurrency(tenantId, replacement.getId());
         }
+
         entity.setIsFunctional(Boolean.FALSE);
         softDelete(entity);
         currencyRepository.save(entity);
@@ -356,11 +365,23 @@ public class ConfigCatalogServiceImpl implements ConfigCatalogService {
         if (entity.getDecimals() == null) {
             entity.setDecimals(2);
         }
-        if (currencyRepository.findByTenantIdAndCodeAndDeletedAtIsNull(tenantId, normalizedCode)
-                .filter(found -> currentId == null || !found.getId().equals(currentId))
-                .isPresent()) {
-            throw new ConflictException("Ya existe una moneda con el mismo code");
+        if (entity.getDecimals() < 0 || entity.getDecimals() > 6) {
+            throw new BadRequestException("decimals debe estar entre 0 y 6");
         }
+        boolean duplicateCode = currentId == null
+                ? currencyRepository.existsByTenantIdAndCodeAndDeletedAtIsNull(tenantId, normalizedCode)
+                : currencyRepository.existsByTenantIdAndCodeAndDeletedAtIsNullAndIdNot(tenantId, normalizedCode, currentId);
+        if (duplicateCode) {
+            throw new ConflictException("Ya existe una moneda con ese código.");
+        }
+    }
+
+    private void assignFunctionalCurrencyIfAvailable(UUID tenantId, UUID excludedId) {
+        currencyRepository.findFirstByTenantIdAndActiveTrueAndDeletedAtIsNullAndIdNotOrderByCodeAsc(tenantId, excludedId)
+                .ifPresent(replacement -> {
+                    currencyRepository.unsetFunctionalCurrencies(tenantId, replacement.getId());
+                    currencyRepository.setFunctionalCurrency(tenantId, replacement.getId());
+                });
     }
 
     private void softDelete(Currency entity) { entity.setActive(Boolean.FALSE); entity.setDeletedAt(OffsetDateTime.now()); entity.setDeletedBy(jwtUtil.getCurrentUser()); }
