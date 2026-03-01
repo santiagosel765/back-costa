@@ -407,7 +407,9 @@ public class AuthAdminController {
         Map<UUID, AuthModule> validModulesById = tenantModules.stream().collect(Collectors.toMap(AuthModule::getId, module -> module));
         Set<UUID> validModuleIds = validModulesById.keySet();
         if (validModuleIds.size() != uniqueModuleIds.size()) {
-            throw new ConflictException("One or more modules do not exist, are inactive, or do not belong to the tenant");
+            Set<UUID> invalidModuleIds = new HashSet<>(uniqueModuleIds);
+            invalidModuleIds.removeAll(validModuleIds);
+            throw new BadRequestException("Invalid moduleIds for tenant: " + invalidModuleIds);
         }
 
         List<AuthRoleModule> existingAssignments = roleModuleRepository.findByRoleIdAndTenantId(role.getId(), tenantId);

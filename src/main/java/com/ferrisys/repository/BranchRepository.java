@@ -10,4 +10,6 @@ import org.springframework.data.jpa.repository.JpaRepository;
 public interface BranchRepository extends JpaRepository<Branch, UUID> {
     Optional<Branch> findByIdAndTenantIdAndActiveTrueAndDeletedAtIsNull(UUID id, UUID tenantId);
     Page<Branch> findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(UUID tenantId, String search, Pageable pageable);
+    boolean existsByTenantIdAndCodeIgnoreCaseAndActiveTrueAndDeletedAtIsNull(UUID tenantId, String code);
+    boolean existsByTenantIdAndCodeIgnoreCaseAndIdNotAndActiveTrueAndDeletedAtIsNull(UUID tenantId, String code, UUID id);
 }

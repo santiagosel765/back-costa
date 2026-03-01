@@ -48,8 +48,9 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public PageResponse<BranchDTO> listBranches(int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
+        int normalizedPage = normalizePage(page);
         var p = branchRepository.findByTenantIdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, safeSearch(search), PageRequest.of(normalizedPage, size));
         return PageResponse.of(branchMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -57,9 +58,15 @@ public class OrgServiceImpl implements OrgService {
     @Transactional
     public BranchDTO saveBranch(BranchDTO dto) {
         UUID tenantId = tenantContextHolder.requireTenantId();
+        validateBranch(dto.code(), dto.name());
+        if (branchRepository.existsByTenantIdAndCodeIgnoreCaseAndActiveTrueAndDeletedAtIsNull(tenantId, dto.code().trim())) {
+            throw new ConflictException("Ya existe una sucursal con el mismo código");
+        }
         Branch entity = branchMapper.toEntity(dto);
         entity.setId(null);
         entity.setTenantId(tenantId);
+        entity.setCode(dto.code().trim());
+        entity.setName(dto.name().trim());
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
@@ -72,8 +79,12 @@ public class OrgServiceImpl implements OrgService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         Branch entity = branchRepository.findByIdAndTenantIdAndActiveTrueAndDeletedAtIsNull(id, tenantId)
                 .orElseThrow(() -> new NotFoundException("Sucursal no encontrada"));
-        entity.setCode(dto.code());
-        entity.setName(dto.name());
+        validateBranch(dto.code(), dto.name());
+        if (branchRepository.existsByTenantIdAndCodeIgnoreCaseAndIdNotAndActiveTrueAndDeletedAtIsNull(tenantId, dto.code().trim(), id)) {
+            throw new ConflictException("Ya existe una sucursal con el mismo código");
+        }
+        entity.setCode(dto.code().trim());
+        entity.setName(dto.name().trim());
         entity.setDescription(dto.description());
         entity.setAddress(dto.address());
         if (dto.active() != null) {
@@ -95,9 +106,10 @@ public class OrgServiceImpl implements OrgService {
     @Override
     public PageResponse<WarehouseDTO> listWarehouses(UUID branchId, int page, int size, String search) {
         UUID tenantId = tenantContextHolder.requireTenantId();
+        int normalizedPage = normalizePage(page);
         ensureBranch(branchId, tenantId);
         var p = warehouseRepository.findByTenantIdAndBranch_IdAndActiveTrueAndDeletedAtIsNullAndNameContainingIgnoreCase(
-                tenantId, branchId, safeSearch(search), PageRequest.of(page, size));
+                tenantId, branchId, safeSearch(search), PageRequest.of(normalizedPage, size));
         return PageResponse.of(warehouseMapper.toDtoList(p.getContent()), p.getTotalPages(), p.getTotalElements(), p.getNumber(), p.getSize());
     }
 
@@ -109,8 +121,8 @@ public class OrgServiceImpl implements OrgService {
         Warehouse entity = new Warehouse();
         entity.setTenantId(tenantId);
         entity.setBranch(branch);
-        entity.setCode(dto.code());
-        entity.setName(dto.name());
+        entity.setCode(dto.code().trim());
+        entity.setName(dto.name().trim());
         entity.setDescription(dto.description());
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
@@ -127,8 +139,8 @@ public class OrgServiceImpl implements OrgService {
         if (dto.branchId() != null) {
             entity.setBranch(ensureBranch(UUID.fromString(dto.branchId()), tenantId));
         }
-        entity.setCode(dto.code());
-        entity.setName(dto.name());
+        entity.setCode(dto.code().trim());
+        entity.setName(dto.name().trim());
         entity.setDescription(dto.description());
         if (dto.active() != null) {
             entity.setActive(dto.active());
@@ -150,7 +162,7 @@ public class OrgServiceImpl implements OrgService {
     public PageResponse<UserBranchAssignmentDTO> listUserBranchAssignments(UUID userId, UUID branchId, int page, int size) {
         UUID tenantId = tenantContextHolder.requireTenantId();
         Page<UserBranchAssignment> assignments;
-        PageRequest pageRequest = PageRequest.of(page, size);
+        PageRequest pageRequest = PageRequest.of(normalizePage(page), size);
 
         if (userId != null && branchId != null) {
             assignments = userBranchAssignmentRepository.findByTenantIdAndUserIdAndBranch_IdAndDeletedAtIsNull(
@@ -248,6 +260,19 @@ public class OrgServiceImpl implements OrgService {
 
     private String safeSearch(String search) {
         return search == null ? "" : search;
+    }
+
+    private int normalizePage(int page) {
+        return page <= 1 ? 0 : page - 1;
+    }
+
+    private void validateBranch(String code, String name) {
+        if (code == null || code.isBlank()) {
+            throw new BadRequestException("El código de la sucursal es obligatorio");
+        }
+        if (name == null || name.isBlank()) {
+            throw new BadRequestException("El nombre de la sucursal es obligatorio");
+        }
     }
 
     private void softDelete(Branch entity) {

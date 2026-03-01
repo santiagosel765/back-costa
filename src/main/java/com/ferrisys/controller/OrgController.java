@@ -69,7 +69,7 @@ public class OrgController {
         return ApiResponse.single(null);
     }
 
-    @GetMapping("/user-branch-assignments")
+    @GetMapping({"/user-branch-assignments", "/assignments"})
     public ApiResponse<List<UserBranchAssignmentDTO>> listUserBranchAssignments(@RequestParam(required = false) UUID userId,
                                                                                  @RequestParam(required = false) UUID branchId,
                                                                                  @RequestParam(defaultValue = "0") int page,
@@ -81,12 +81,12 @@ public class OrgController {
         return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
     }
 
-    @PostMapping("/user-branch-assignments")
+    @PostMapping({"/user-branch-assignments", "/assignments"})
     public ApiResponse<UserBranchAssignmentDTO> createUserBranchAssignment(@RequestBody UserBranchAssignmentDTO dto) {
         return ApiResponse.single(orgService.createUserBranchAssignment(UUID.fromString(dto.userId()), UUID.fromString(dto.branchId())));
     }
 
-    @DeleteMapping("/user-branch-assignments/{id}")
+    @DeleteMapping({"/user-branch-assignments/{id}", "/assignments/{id}"})
     public ApiResponse<Void> deleteUserBranchAssignment(@PathVariable UUID id) {
         orgService.deleteUserBranchAssignment(id);
         return ApiResponse.single(null);
