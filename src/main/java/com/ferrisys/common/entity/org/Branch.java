@@ -40,6 +40,33 @@ public class Branch extends Auditable implements Serializable {
     @Column
     private String address;
 
+    @Column(name = "address_line1", length = 120)
+    private String addressLine1;
+
+    @Column(name = "address_line2", length = 120)
+    private String addressLine2;
+
+    @Column(length = 80)
+    private String city;
+
+    @Column(length = 80)
+    private String state;
+
+    @Column(length = 80)
+    private String country;
+
+    @Column(name = "postal_code", length = 20)
+    private String postalCode;
+
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal latitude;
+
+    @Column(precision = 10, scale = 7)
+    private java.math.BigDecimal longitude;
+
+    @Column(name = "location_notes")
+    private String locationNotes;
+
     @Column(nullable = false)
     private Boolean active = Boolean.TRUE;
 

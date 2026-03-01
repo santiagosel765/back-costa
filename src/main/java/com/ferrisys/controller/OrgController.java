@@ -4,6 +4,11 @@ import com.ferrisys.common.api.ApiResponse;
 import com.ferrisys.common.dto.PagedData;
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
+import com.ferrisys.common.dto.org.CreateDocumentNumberingRequest;
+import com.ferrisys.common.dto.org.CreateWarehouseRequest;
+import com.ferrisys.common.dto.org.DocumentNumberingDTO;
+import com.ferrisys.common.dto.org.UpdateDocumentNumberingRequest;
+import com.ferrisys.common.dto.org.UpdateWarehouseRequest;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
 import com.ferrisys.config.license.RequireModule;
@@ -61,15 +66,65 @@ public class OrgController {
         return ApiResponse.single(orgService.saveWarehouse(branchId, dto));
     }
 
-    @PutMapping("/warehouses/{id}")
-    public ApiResponse<WarehouseDTO> updateWarehouse(@PathVariable UUID id, @RequestBody WarehouseDTO dto) {
-        return ApiResponse.single(orgService.updateWarehouse(id, dto));
-    }
-
     @DeleteMapping("/warehouses/{id}")
     public ApiResponse<Void> deleteWarehouse(@PathVariable UUID id) {
         orgService.deleteWarehouse(id);
         return ApiResponse.single(null);
+    }
+
+    @GetMapping("/warehouses")
+    public ApiResponse<List<WarehouseDTO>> listWarehouses(@RequestParam(defaultValue = "1") int page,
+                                                          @RequestParam(defaultValue = "10") int size,
+                                                          @RequestParam(defaultValue = "") String search,
+                                                          @RequestParam(required = false) UUID branchId,
+                                                          @RequestParam(required = false) Boolean active) {
+        PageResponse<WarehouseDTO> response = orgService.listWarehouses(branchId, active, page, size, search);
+        return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
+    }
+
+    @PostMapping("/warehouses")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<WarehouseDTO> createWarehouse(@RequestBody CreateWarehouseRequest dto) {
+        return ApiResponse.single(orgService.createWarehouse(dto));
+    }
+
+    @PutMapping("/warehouses/{id}")
+    public ApiResponse<WarehouseDTO> updateWarehouseV2(@PathVariable UUID id, @RequestBody UpdateWarehouseRequest dto) {
+        return ApiResponse.single(orgService.updateWarehouse(id, dto));
+    }
+
+    @GetMapping("/document-numbering")
+    public ApiResponse<List<DocumentNumberingDTO>> listDocumentNumbering(@RequestParam(defaultValue = "1") int page,
+                                                                          @RequestParam(defaultValue = "10") int size,
+                                                                          @RequestParam(defaultValue = "") String search,
+                                                                          @RequestParam(required = false) UUID branchId,
+                                                                          @RequestParam(required = false) UUID documentTypeId,
+                                                                          @RequestParam(required = false) Boolean active) {
+        PageResponse<DocumentNumberingDTO> response = orgService.listDocumentNumbering(branchId, documentTypeId, active, page, size, search);
+        return ApiResponse.list(response.content(), response.totalElements(), response.page(), response.size(), response.totalPages());
+    }
+
+    @PostMapping("/document-numbering")
+    @ResponseStatus(HttpStatus.CREATED)
+    public ApiResponse<DocumentNumberingDTO> createDocumentNumbering(@RequestBody CreateDocumentNumberingRequest dto) {
+        return ApiResponse.single(orgService.createDocumentNumbering(dto));
+    }
+
+    @PutMapping("/document-numbering/{id}")
+    public ApiResponse<DocumentNumberingDTO> updateDocumentNumbering(@PathVariable UUID id,
+                                                                      @RequestBody UpdateDocumentNumberingRequest dto) {
+        return ApiResponse.single(orgService.updateDocumentNumbering(id, dto));
+    }
+
+    @DeleteMapping("/document-numbering/{id}")
+    public ApiResponse<Void> deleteDocumentNumbering(@PathVariable UUID id) {
+        orgService.deleteDocumentNumbering(id);
+        return ApiResponse.single(null);
+    }
+
+    @GetMapping("/document-numbering/{id}/preview")
+    public ApiResponse<String> previewDocumentNumbering(@PathVariable UUID id) {
+        return ApiResponse.single(orgService.previewDocumentNumbering(id));
     }
 
     @GetMapping({"/user-branch-assignments", "/assignments"})
