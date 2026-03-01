@@ -214,7 +214,6 @@ public class AuthAdminController {
     @ResponseStatus(HttpStatus.CREATED)
     public Role createRole(@Valid @RequestBody AdminRoleRequest request) {
         Role role = Role.builder()
-                .moduleKey(ModuleKeyNormalizer.normalize(request.name()))
                 .name(request.name())
                 .description(request.description())
                 .status(request.status())
