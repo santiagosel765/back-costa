@@ -10,21 +10,19 @@ WITH selected_tenant AS (
         id
     LIMIT 1
 )
-INSERT INTO cfg_currency (id, tenant_id, code, name, description, symbol, decimals, is_functional, active, created_at, updated_at)
-SELECT seed.id, selected_tenant.id, seed.code, seed.name, seed.description, seed.symbol, seed.decimals, seed.is_functional, TRUE, NOW(), NOW()
+INSERT INTO cfg_currency (id, tenant_id, code, name, description, active, created_at, updated_at)
+SELECT seed.id, selected_tenant.id, seed.code, seed.name, seed.description, TRUE, NOW(), NOW()
 FROM selected_tenant
 CROSS JOIN (
     VALUES
-        ('10000000-0000-0000-0000-000000000001'::UUID, 'GTQ', 'Quetzal Guatemalteco', 'Moneda funcional del tenant', 'Q', 2, TRUE),
-        ('10000000-0000-0000-0000-000000000002'::UUID, 'USD', 'US Dollar', 'Moneda de referencia en dólares', '$', 2, FALSE)
-) AS seed (id, code, name, description, symbol, decimals, is_functional)
+        ('10000000-0000-0000-0000-000000000001'::UUID, 'USD', 'US Dollar', 'Moneda base en dólares'),
+        ('10000000-0000-0000-0000-000000000002'::UUID, 'EUR', 'Euro', 'Moneda para operaciones europeas'),
+        ('10000000-0000-0000-0000-000000000003'::UUID, 'PEN', 'Sol Peruano', 'Moneda local')
+) AS seed (id, code, name, description)
 ON CONFLICT (tenant_id, code) DO UPDATE
 SET
     name = EXCLUDED.name,
     description = EXCLUDED.description,
-    symbol = EXCLUDED.symbol,
-    decimals = EXCLUDED.decimals,
-    is_functional = EXCLUDED.is_functional,
     active = TRUE,
     deleted_at = NULL,
     deleted_by = NULL,
