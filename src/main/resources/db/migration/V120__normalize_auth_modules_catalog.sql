@@ -84,7 +84,46 @@ FROM ranked r
 WHERE am.id = r.id
   AND r.row_num > 1;
 
--- Reasigna auth_role_module al id canónico activo y desactiva duplicados repetidos.
+-- Reasigna auth_role_module al id canónico activo evitando colisiones por unique duro.
+WITH canonical AS (
+    SELECT DISTINCT ON (tenant_id, normalize_module_key(name))
+           id,
+           tenant_id,
+           normalize_module_key(name) AS canonical_key
+    FROM auth_module
+    WHERE status = 1
+    ORDER BY tenant_id, normalize_module_key(name),
+             CASE WHEN name = normalize_module_key(name) THEN 0 ELSE 1 END,
+             updated_at DESC NULLS LAST,
+             created_at DESC NULLS LAST,
+             id
+),
+arm_targets AS (
+    SELECT arm.id,
+           arm.tenant_id,
+           arm.auth_role_id,
+           arm.auth_module_id,
+           c.id AS canonical_module_id,
+           ROW_NUMBER() OVER (
+               PARTITION BY arm.tenant_id, arm.auth_role_id, c.id
+               ORDER BY
+                   CASE WHEN arm.status = 1 THEN 0 ELSE 1 END,
+                   arm.updated_at DESC NULLS LAST,
+                   arm.created_at DESC NULLS LAST,
+                   arm.id
+           ) AS row_num
+    FROM auth_role_module arm
+    JOIN auth_module am
+      ON am.id = arm.auth_module_id
+    JOIN canonical c
+      ON c.tenant_id = am.tenant_id
+     AND c.canonical_key = normalize_module_key(am.name)
+)
+DELETE FROM auth_role_module arm
+USING arm_targets t
+WHERE arm.id = t.id
+  AND t.row_num > 1;
+
 WITH canonical AS (
     SELECT DISTINCT ON (tenant_id, normalize_module_key(name))
            id,
@@ -106,24 +145,6 @@ JOIN canonical c
  AND c.canonical_key = normalize_module_key(am.name)
 WHERE arm.auth_module_id = am.id
   AND arm.auth_module_id <> c.id;
-
-WITH repeated_assignments AS (
-    SELECT id,
-           ROW_NUMBER() OVER (
-               PARTITION BY tenant_id, auth_role_id, auth_module_id
-               ORDER BY
-                   CASE WHEN status = 1 THEN 0 ELSE 1 END,
-                   updated_at DESC NULLS LAST,
-                   created_at DESC NULLS LAST,
-                   id
-           ) AS row_num
-    FROM auth_role_module
-)
-UPDATE auth_role_module arm
-SET status = 0
-FROM repeated_assignments ra
-WHERE arm.id = ra.id
-  AND ra.row_num > 1;
 
 -- Mantiene la semilla CONFIG/ORG idempotente con las claves canónicas.
 WITH selected_tenant AS (
