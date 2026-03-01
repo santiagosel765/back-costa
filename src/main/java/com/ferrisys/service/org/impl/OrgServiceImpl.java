@@ -22,17 +22,25 @@ import com.ferrisys.repository.UserRepository;
 import com.ferrisys.repository.WarehouseRepository;
 import com.ferrisys.service.org.OrgService;
 import java.time.OffsetDateTime;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class OrgServiceImpl implements OrgService {
 
     private final TenantContextHolder tenantContextHolder;
@@ -223,14 +231,44 @@ public class OrgServiceImpl implements OrgService {
         UUID tenantId = tenantContextHolder.requireTenantId();
         User user = getCurrentUser();
 
-        List<UserBranchAssignment> assignments = userBranchAssignmentRepository
-                .findByTenantIdAndUserIdAndActiveTrueAndDeletedAtIsNull(tenantId, user.getId());
+        try {
+            List<UserBranchAssignment> assignments = userBranchAssignmentRepository
+                    .findByTenantIdAndUserIdAndActiveTrueAndDeletedAtIsNull(tenantId, user.getId());
 
-        return assignments.stream()
-                .map(UserBranchAssignment::getBranch)
-                .filter(branch -> Boolean.TRUE.equals(branch.getActive()) && branch.getDeletedAt() == null)
-                .map(branchMapper::toDto)
-                .toList();
+            Set<UUID> branchIds = assignments.stream()
+                    .map(UserBranchAssignment::getBranch)
+                    .filter(java.util.Objects::nonNull)
+                    .map(Branch::getId)
+                    .filter(java.util.Objects::nonNull)
+                    .collect(Collectors.toCollection(LinkedHashSet::new));
+
+            if (branchIds.isEmpty()) {
+                return List.of();
+            }
+
+            Map<UUID, Branch> branchesById = branchRepository
+                    .findByTenantIdAndIdInAndActiveTrueAndDeletedAtIsNull(tenantId, branchIds)
+                    .stream()
+                    .collect(Collectors.toMap(Branch::getId, Function.identity()));
+
+            return assignments.stream()
+                    .map(UserBranchAssignment::getBranch)
+                    .filter(java.util.Objects::nonNull)
+                    .map(Branch::getId)
+                    .filter(java.util.Objects::nonNull)
+                    .map(branchId -> mapAssignedBranch(branchId, branchesById, tenantId, user.getId()))
+                    .filter(java.util.Objects::nonNull)
+                    .map(branchMapper::toDto)
+                    .toList();
+        } catch (RuntimeException ex) {
+            log.error("Error retrieving branches for user {} in tenant {}", user.getId(), tenantId, ex);
+            throw ex;
+        }
+    }
+
+    @Override
+    public BranchDTO currentUserBranch() {
+        return currentUserBranches().stream().findFirst().orElse(null);
     }
 
     @Override
@@ -251,9 +289,28 @@ public class OrgServiceImpl implements OrgService {
     }
 
     private User getCurrentUser() {
-        String username = jwtUtil.getCurrentUser();
-        return userRepository.findByUsername(username)
-                .orElseThrow(() -> new NotFoundException("Usuario no encontrado"));
+        String username = null;
+        try {
+            username = jwtUtil.getCurrentUser();
+        } catch (RuntimeException ex) {
+            log.warn("Unable to resolve current authenticated user from security context", ex);
+        }
+
+        if (username == null || username.isBlank() || "anonymousUser".equalsIgnoreCase(username)) {
+            throw new AuthenticationCredentialsNotFoundException("Usuario no autenticado");
+        }
+
+        final String resolvedUsername = username;
+        return userRepository.findByUsername(resolvedUsername)
+                .orElseThrow(() -> new AuthenticationCredentialsNotFoundException("Usuario autenticado no encontrado"));
+    }
+
+    private Branch mapAssignedBranch(UUID branchId, Map<UUID, Branch> branchesById, UUID tenantId, UUID userId) {
+        Branch branch = branchesById.get(branchId);
+        if (branch == null) {
+            log.warn("Ignoring assignment to missing or inactive branch {} for user {} in tenant {}", branchId, userId, tenantId);
+        }
+        return branch;
     }
 
     private Branch ensureBranch(UUID branchId, UUID tenantId) {

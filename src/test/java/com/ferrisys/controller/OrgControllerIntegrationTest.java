@@ -42,6 +42,7 @@ import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
 import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.authentication.AuthenticationCredentialsNotFoundException;
 import org.springframework.test.web.servlet.MockMvc;
 
 @WebMvcTest(
@@ -189,6 +190,27 @@ class OrgControllerIntegrationTest {
         mockMvc.perform(get("/v1/org/me/branches"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].code").value("SCL"));
+    }
+
+
+    @Test
+    void shouldListCurrentUserPrimaryBranchInMeBranchEndpoint() throws Exception {
+        when(orgService.currentUserBranch())
+                .thenReturn(new BranchDTO(UUID.randomUUID().toString(), "SCL", "Sucursal Centro", null, null, true, null));
+
+        mockMvc.perform(get("/v1/org/me/branch"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.code").value("SCL"));
+    }
+
+    @Test
+    void shouldReturn401WhenCurrentUserBranchesWithoutAuthentication() throws Exception {
+        doThrow(new AuthenticationCredentialsNotFoundException("Usuario no autenticado"))
+                .when(orgService).currentUserBranches();
+
+        mockMvc.perform(get("/v1/org/me/branches"))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("UNAUTHORIZED"));
     }
 
     @Test
