@@ -8,6 +8,7 @@ import com.ferrisys.common.dto.org.DocumentNumberingDTO;
 import com.ferrisys.common.dto.org.UpdateDocumentNumberingRequest;
 import com.ferrisys.common.dto.org.UpdateWarehouseRequest;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentEnrichedDTO;
 import com.ferrisys.common.dto.org.WarehouseDTO;
 import java.util.List;
 import java.util.UUID;
@@ -33,6 +34,7 @@ public interface OrgService {
     String previewDocumentNumbering(UUID id);
 
     PageResponse<UserBranchAssignmentDTO> listUserBranchAssignments(UUID userId, UUID branchId, int page, int size);
+    PageResponse<UserBranchAssignmentEnrichedDTO> listUserBranchAssignmentsEnriched(UUID userId, UUID branchId, int page, int size);
     UserBranchAssignmentDTO createUserBranchAssignment(UUID userId, UUID branchId);
     void deleteUserBranchAssignment(UUID id);
 

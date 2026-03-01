@@ -12,6 +12,7 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import com.ferrisys.common.dto.PageResponse;
 import com.ferrisys.common.dto.org.BranchDTO;
 import com.ferrisys.common.dto.org.UserBranchAssignmentDTO;
+import com.ferrisys.common.dto.org.UserBranchAssignmentEnrichedDTO;
 import com.ferrisys.common.exception.impl.NotFoundException;
 import com.ferrisys.config.license.ModuleLicenseInterceptor;
 import com.ferrisys.config.license.ModuleLicenseService;
@@ -177,6 +178,31 @@ class OrgControllerIntegrationTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.page").value(1))
                 .andExpect(jsonPath("$.data.length()").value(1));
+    }
+
+    @Test
+    void shouldListEnrichedAssignments() throws Exception {
+        UUID userId = UUID.randomUUID();
+        UUID branchId = UUID.randomUUID();
+        when(orgService.listUserBranchAssignmentsEnriched(eq(userId), eq(branchId), eq(1), eq(10)))
+                .thenReturn(new PageResponse<>(List.of(new UserBranchAssignmentEnrichedDTO(
+                        UUID.randomUUID().toString(),
+                        userId.toString(),
+                        "Jane Doe",
+                        "jane@ferrisys.com",
+                        branchId.toString(),
+                        "SCL",
+                        "Sucursal Centro",
+                        true,
+                        null
+                )), 1, 1, 1, 10));
+
+        mockMvc.perform(get("/v1/org/user-branch-assignments/enriched")
+                        .param("userId", userId.toString())
+                        .param("branchId", branchId.toString()))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0].userFullName").value("Jane Doe"))
+                .andExpect(jsonPath("$.data[0].branchCode").value("SCL"));
     }
 
     @Test
