@@ -16,6 +16,7 @@ public record WarehouseDTO(String id,
                            BigDecimal latitude,
                            BigDecimal longitude,
                            String locationNotes,
+                           String warehouseType,
                            Boolean active,
                            String updatedAt) {
 }

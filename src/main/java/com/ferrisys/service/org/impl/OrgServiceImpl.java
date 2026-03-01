@@ -92,6 +92,7 @@ public class OrgServiceImpl implements OrgService {
         entity.setDescription(dto.description());
         entity.setAddress(dto.address());
         applyBranchLocation(entity, dto);
+        applyBranchContact(entity, dto);
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
@@ -113,6 +114,7 @@ public class OrgServiceImpl implements OrgService {
         entity.setDescription(dto.description());
         entity.setAddress(dto.address());
         applyBranchLocation(entity, dto);
+        applyBranchContact(entity, dto);
         if (dto.active() != null) {
             entity.setActive(dto.active());
         }
@@ -163,7 +165,8 @@ public class OrgServiceImpl implements OrgService {
                 dto.postalCode(),
                 dto.latitude(),
                 dto.longitude(),
-                dto.locationNotes()
+                dto.locationNotes(),
+                dto.warehouseType()
         ));
     }
 
@@ -185,6 +188,7 @@ public class OrgServiceImpl implements OrgService {
         entity.setDescription(dto.description());
         applyWarehouseLocation(entity, dto.addressLine1(), dto.addressLine2(), dto.city(), dto.state(), dto.country(), dto.postalCode(), dto.latitude(), dto.longitude(), dto.locationNotes());
         entity.setActive(dto.active() == null ? Boolean.TRUE : dto.active());
+        entity.setWarehouseType(normalizeWarehouseType(dto.warehouseType()));
         entity.setDeletedAt(null);
         entity.setDeletedBy(null);
         return warehouseMapper.toDto(warehouseRepository.save(entity));
@@ -207,7 +211,8 @@ public class OrgServiceImpl implements OrgService {
                 dto.postalCode(),
                 dto.latitude(),
                 dto.longitude(),
-                dto.locationNotes()
+                dto.locationNotes(),
+                dto.warehouseType()
         ));
     }
 
@@ -230,6 +235,7 @@ public class OrgServiceImpl implements OrgService {
         if (dto.active() != null) {
             entity.setActive(dto.active());
         }
+        entity.setWarehouseType(normalizeWarehouseType(dto.warehouseType()));
         return warehouseMapper.toDto(warehouseRepository.save(entity));
     }
 
@@ -550,6 +556,23 @@ public class OrgServiceImpl implements OrgService {
         entity.setLatitude(latitude);
         entity.setLongitude(longitude);
         entity.setLocationNotes(locationNotes);
+    }
+
+    private String normalizeWarehouseType(String warehouseType) {
+        if (warehouseType == null || warehouseType.isBlank()) {
+            return "MAIN";
+        }
+        String normalized = warehouseType.trim().toUpperCase();
+        if (!Set.of("MAIN", "SALES", "RETURNS").contains(normalized)) {
+            throw new BadRequestException("warehouseType debe ser MAIN, SALES o RETURNS");
+        }
+        return normalized;
+    }
+
+    private void applyBranchContact(Branch entity, BranchDTO dto) {
+        entity.setPhone(dto.phone());
+        entity.setEmail(dto.email());
+        entity.setManagerName(dto.managerName());
     }
 
     private void softDelete(Branch entity) {

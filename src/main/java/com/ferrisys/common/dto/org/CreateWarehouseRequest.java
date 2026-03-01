@@ -17,6 +17,7 @@ public record CreateWarehouseRequest(
         String postalCode,
         BigDecimal latitude,
         BigDecimal longitude,
-        String locationNotes
+        String locationNotes,
+        String warehouseType
 ) {
 }
