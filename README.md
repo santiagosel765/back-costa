@@ -142,6 +142,31 @@ JWT claims now include:
 5. Disable one module license for the same tenant (UI/admin SQL) and repeat step 3:
    - disabled module must no longer be present in `modules[]` and in `permissions`.
 
+## 🔐 Auth Admin role permissions (`/v1/auth/admin/role-permissions`)
+
+Nuevo endpoint para frontend de administración:
+
+- `GET /v1/auth/admin/role-permissions?roleId=<uuid>`
+- Responde permisos efectivos por rol en formato `moduleKey -> {read, write, delete}`.
+- Para el mapeo de claves se normalizan nombres de módulo, incluyendo alias:
+  - `Inventario` -> `INVENTORY`
+  - `Core de Autenticación` -> `AUTH_CORE`
+
+Ejemplo:
+
+```json
+{
+  "roleId": "...",
+  "roleName": "ADMIN",
+  "permissions": {
+    "INVENTORY": { "read": true, "write": true, "delete": true },
+    "AUTH_CORE": { "read": true, "write": true, "delete": true }
+  }
+}
+```
+
+Además, `GET /v1/auth/admin/role-modules` ahora incluye `modules` con metadata básica (`id`, `key`, `name`) además de `moduleIds`.
+
 ## Sprint 1 Config + Org
 
 Parámetros default por tenant (auto-seed idempotente):

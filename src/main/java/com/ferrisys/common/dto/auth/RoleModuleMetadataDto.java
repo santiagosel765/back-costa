@@ -1,6 +1,5 @@
 package com.ferrisys.common.dto.auth;
 
-import java.util.List;
 import java.util.UUID;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
@@ -13,10 +12,9 @@ import lombok.Setter;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class RoleModulesDto {
+public class RoleModuleMetadataDto {
 
-    private UUID roleId;
-    private String roleName;
-    private List<UUID> moduleIds;
-    private List<RoleModuleMetadataDto> modules;
+    private UUID id;
+    private String key;
+    private String name;
 }

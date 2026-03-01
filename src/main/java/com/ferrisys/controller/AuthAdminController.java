@@ -1,7 +1,9 @@
 package com.ferrisys.controller;
 
 import com.ferrisys.common.dto.RegisterRequest;
+import com.ferrisys.common.dto.auth.RoleModuleMetadataDto;
 import com.ferrisys.common.dto.auth.RoleModulesDto;
+import com.ferrisys.common.dto.auth.RolePermissionsDto;
 import com.ferrisys.common.entity.license.ModuleLicense;
 import com.ferrisys.common.entity.user.AuthModule;
 import com.ferrisys.common.entity.user.AuthRoleModule;
@@ -13,6 +15,7 @@ import com.ferrisys.common.enums.DefaultUserStatus;
 import com.ferrisys.common.exception.impl.BadRequestException;
 import com.ferrisys.common.exception.impl.ConflictException;
 import com.ferrisys.common.exception.impl.NotFoundException;
+import com.ferrisys.common.util.ModuleKeyNormalizer;
 import com.ferrisys.core.tenant.TenantContextHolder;
 import com.ferrisys.repository.AuthUserRoleRepository;
 import com.ferrisys.repository.ModuleLicenseRepository;
@@ -298,6 +301,16 @@ public class AuthAdminController {
         return buildRoleModulesDto(role, assignments);
     }
 
+    @GetMapping("/role-permissions")
+    @Transactional
+    public RolePermissionsDto getRolePermissions(@RequestParam("roleId") UUID roleId) {
+        UUID tenantId = tenantContextHolder.requireTenantId();
+        Role role = roleRepository.findByIdAndTenantId(roleId, tenantId)
+                .orElseThrow(() -> new NotFoundException("Role not found for tenant"));
+        List<AuthRoleModule> assignments = roleModuleRepository.findByRoleIdAndTenantIdAndStatus(roleId, tenantId, 1);
+        return buildRolePermissionsDto(role, assignments);
+    }
+
     @PostMapping("/role-modules")
     @Transactional
     public void saveRoleModules(@Valid @RequestBody RoleModuleRequest request) {
@@ -470,16 +483,59 @@ public class AuthAdminController {
     }
 
     private RoleModulesDto buildRoleModulesDto(Role role, List<AuthRoleModule> assignments) {
-        List<UUID> moduleIds = assignments.stream()
+        List<AuthModule> activeModules = assignments.stream()
                 .filter(assignment -> assignment.getStatus() == null || assignment.getStatus() == 1)
-                .map(assignment -> assignment.getModule().getId())
+                .map(AuthRoleModule::getModule)
+                .toList();
+
+        List<UUID> moduleIds = activeModules.stream().map(AuthModule::getId).toList();
+        List<RoleModuleMetadataDto> moduleMetadata = activeModules.stream()
+                .map(module -> RoleModuleMetadataDto.builder()
+                        .id(module.getId())
+                        .name(module.getName())
+                        .key(resolveModuleKey(module.getName()))
+                        .build())
                 .toList();
 
         return RoleModulesDto.builder()
                 .roleId(role.getId())
                 .roleName(role.getName())
                 .moduleIds(moduleIds)
+                .modules(moduleMetadata)
                 .build();
+    }
+
+    private RolePermissionsDto buildRolePermissionsDto(Role role, List<AuthRoleModule> assignments) {
+        Map<String, RolePermissionsDto.ActionPermissionsDto> permissions = assignments.stream()
+                .filter(assignment -> assignment.getStatus() == null || assignment.getStatus() == 1)
+                .map(AuthRoleModule::getModule)
+                .collect(Collectors.toMap(
+                        module -> resolveModuleKey(module.getName()),
+                        module -> RolePermissionsDto.ActionPermissionsDto.builder()
+                                .read(true)
+                                .write(true)
+                                .delete(true)
+                                .build(),
+                        (existing, replacement) -> existing));
+
+        return RolePermissionsDto.builder()
+                .roleId(role.getId())
+                .roleName(role.getName())
+                .permissions(permissions)
+                .build();
+    }
+
+    private String resolveModuleKey(String moduleName) {
+        String normalized = ModuleKeyNormalizer.normalize(moduleName);
+        if (normalized == null) {
+            return null;
+        }
+
+        return switch (normalized) {
+            case "INVENTARIO" -> "INVENTORY";
+            case "CORE_DE_AUTENTICACION" -> "AUTH_CORE";
+            default -> normalized;
+        };
     }
 
     private AdminUserResponse mapUser(User user, List<AuthUserRole> assignments) {
