@@ -99,8 +99,7 @@ class OrgServiceImplTest {
         when(branchRepository.findByTenantIdAndIdInAndActiveTrueAndDeletedAtIsNull(eq(tenantId), anyCollection()))
                 .thenReturn(List.of(activeBranch));
         when(branchMapper.toDto(activeBranch))
-                .thenReturn(new com.ferrisys.common.dto.org.BranchDTO(activeBranchId.toString(), "S1001", "Sucursal 1", null, null,
-                        null, null, null, null, null, null, null, null, null, true, null));
+                .thenReturn(sampleBranchDTO(activeBranchId.toString(), "S1001", "Sucursal 1", true));
 
         var result = service.currentUserBranches();
 
@@ -115,5 +114,29 @@ class OrgServiceImplTest {
 
         assertThatThrownBy(() -> service.currentUserBranches())
                 .isInstanceOf(AuthenticationCredentialsNotFoundException.class);
+    }
+
+    private com.ferrisys.common.dto.org.BranchDTO sampleBranchDTO(String id, String code, String name, Boolean active) {
+        return new com.ferrisys.common.dto.org.BranchDTO(
+                id,
+                code,
+                name,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                active,
+                null
+        );
     }
 }
